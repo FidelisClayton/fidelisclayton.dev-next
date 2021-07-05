@@ -1,0 +1,98 @@
+---
+title: Instalando e configurando Elm no seu computador
+date: "2020-05-30T15:00:02Z"
+description: Configure seu ambiente de desenvolvimento Elm localmente.
+keywords: tutorial de elm, como instalar elm
+category: Elm
+serie: Elm na prática
+episode: 6
+---
+
+Até agora nós só utilizamos o Ellie para programar nossa aplicação, mas hoje vamos aprender a instalar e configurar todo o ambiente para desenvolver localmente.
+
+O site do Elm disponibiliza várias formas de instalação, vamos instalá-lo utilizando `npm` pois acredito que seja a maneira mais facil e rapida.
+
+Para isso, certifique-se de que você tem o [Node](https://nodejs.org/en/) instalado, caso contrario instale-o antes de prosseguir.
+Depois que o nodo for instalado, você poderá utilizar o [npm](https://www.npmjs.com/). Para isso, abra o terminal e digite `npm install -g elm@0.19.1-3` e aguarde o término da instalação. Depois disso, execute `elm --help` na linha de comando, se a mensagem “**Hi, thank you for trying out Elm 0.19.1. I hope you like it!”** for exibida, tudo foi instalado corretamente.
+
+Outra ferramenta extremamente importante é o `elm-format`, que é responsável por formatar o código e também o `elm-test`, que é responsável pela execução de testes. Para instalá-los, execute `npm install elm-format elm-test -g`.
+
+Para configurar seu editor, verifique esta página (https://github.com/elm/editor-plugins), ela contém instruções de instalação para vários editores de código.
+
+## Criando o projeto localmente
+
+Agora vamos criar um projeto para copiar o código do nosso contador. Primeiro execute esse comando no seu terminal:
+
+```sh
+npx create-elm-app elm-currency
+```
+
+Esse comando vai criar um novo projeto chamado `elm-currency` utilizando o [create-elm-app](https://github.com/halfzebra/create-elm-app), agilizando o processo de configuração.
+
+Depois entre na pasta do projeto usando `cd elm-currency` e execute `elm-app start` no terminal. Esse comando vai iniciar a aplicação em http://localhost:3000/. Ao abrir esse link, você deverá ver essa tela:
+
+![](/images/elm-na-pratica-6/image-1.png)
+
+Agora abra o arquivo `Main.elm` dentro da pasta `src`, apague tudo e então cole todo o código que utilizamos no tutorial até agora: [https://ellie-app.com/8ZvdxnD2rFqa1](https://ellie-app.com/8ZvdxnD2rFqa1).
+
+### Instalando as dependências
+
+Agora precisamos instalar os pacotes `elm/http` e `elm/json`. No seu terminal, execute:
+
+```sh
+elm install elm/http
+```
+
+Digite `Y` e pressione `enter` quando essa mensagem aparecer:
+
+```sh
+Here is my plan:
+  
+  Add:
+    elm/bytes    1.0.8
+    elm/file     1.0.5
+    elm/http     2.0.0
+
+Would you like me to update your elm.json accordingly? [Y/n]: 
+```
+
+![](/images/elm-na-pratica-6/image-5.gif)
+
+Em seguida repita o processo para o `elm/json`:
+
+```sh
+elm install elm/json
+```
+
+Então execute `elm-app start` de novo. Depois disso você verá que nossa aplicação apareceu, mas os estilos nao estao funcionando:
+
+![](/images/elm-na-pratica-6/image-2.png)
+
+### Carregando CSS
+
+Abra o arquivo `public/index.html` e adicione essas linhas de código na tag `head`:
+
+```html
+  <style>
+    body {
+      background-color: #edf2f7;
+    }
+  </style>
+  <link href="https://unpkg.com/tailwindcss@^1.0/dist/tailwind.min.css" rel="stylesheet">
+```
+
+Salve o arquivo e abra o browser novamente, agora tudo deve estar funcionando:
+
+![](/images/elm-na-pratica-6/image-3.png)
+
+Viu aquele ícone no canto inferior direito? E ali que fica o **Debug**, basta clicar nele para abrir a janela de Debug.
+
+![](/images/elm-na-pratica-6/image-4.gif)
+
+**Repositório atualizado**: https://github.com/FidelisClayton/elm-currency-app/tree/parte-6
+
+## Conclusão
+
+Por hoje é só, o processo de instalação não é tão extenso. Caso tenha ficado alguma dúvida ou não tenha conseguido fazer a instalação deixa uma mensagem nos comentários que eu tentarei te ajudar.
+
+Até a próxima!

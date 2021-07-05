@@ -1,0 +1,475 @@
+---
+title: Como importar módulos, criar variáveis e utilizar HTML no Elm
+date: "2020-03-04T00:00:00Z"
+description: Comece sua jornada no Elm aprendendo como importar módulos, criar variáveis e utilizar o pacote elm/html.
+keywords: tutorial de elm, tutorial de elmlang, elm, elmlang, como aprender elm, elm na pratica, aprender elm, como aprender elm, elm para iniciantes
+category: Elm
+serie: Elm na prática
+episode: 1
+---
+
+[Elm](https://elm-lang.org/) é uma linguagem de programação para front-end que chama muita atenção por prometer não causar erros em tempo de execução, isso é possível por quê ela é uma linguagem fortemente tipada. Além disso, ela possui um compilador extremamente sofisticado e super útil que vai nos ajudar bastante no desenvolvimento.
+
+No começo, a sintaxe parece ser bizarra, e caso você nunca tenha utilizado uma linguagem funcional vai se deparar com vários novos conceitos para aprender: funções puras, imutabilidade, monads e muitas outras coisas, mas posso te contar um segredo? Você não precisa entender tudo isso para começar a por a mão na massa. Apesar de parecer muita coisa, o que nos faz criar uma certa "resistência" ao tentar aprender a linguagem é o fato dela ser totalmente diferente das outras soluçōes mais utilizadas no mercado atualmente, mas te garanto que ela é bem mais simples do que parece. 
+
+Nesta série de tutoriais, vamos quebrar essa barreira, pretendo te passar tudo que eu sei e da forma mais compreensível possível. Para isso, vamos construir uma aplicação do zero sem perder horas e horas tentando entender cada um dos conceitos citados anteriormente, o importante agora é praticar e sentir os benefícios que a linguagem tem a oferecer.
+
+Iremos construir uma aplicação bem simples mas que vai além do exemplo de contador que encontramos na documentação oficial, iremos codificar um simples conversor de moedas, mas que com ele aprenderemos todo o básico do Elm. Vamos aprender a usar condicionais, exibir elementos no navegador, reagir a ações do usuário, coletar texto de formulários. Começaremos utilizando apenas o básico e no decorrer da série iremos utilizar novas tecnicas e novas formas de solucionar os problemas.
+
+A aplicaçāo terá basicamente uma funcionalidade, usuário ira escolher uma moeda de origem, informará o quanto ele quer converter, nos dirá qual será a moeda de destino e então nossa aplicação fará a conversão. Vamos começar utilizando valores estáticos para as moedas mas no decorrer dessa série iremos aprender a como pegar dados de APIs e utilizá-los.
+
+### Ambiente de desenvolvimento
+
+Por enquanto não vamos instalar nada no nosso computador, desenvolveremos tudo no navegador utilizando o [Ellie App](https://ellie-app.com/), uma IDE para Elm diretamente no browser. Para acessar a IDE, basta clicar [neste link](http://ellie-app.com/). No decorrer da série vamos instalar tudo na nossa máquina, apesar do processo não ser um bicho de 7 cabeças preferi postergar ele para quando estiver-mos mais familiarizados com a linguagem.
+
+Caso você se depare com uma mensagem antes de aparecer o editor de texto, basta clicar no botão  "**Accept terms**" que em seguida ele será exibido:
+
+![](/images/elm-na-pratica-1/image-1.gif)
+
+No canto superior esquerdo temos o editor de código Elm, abaixo dele, o editor de código HTML e na direita podemos visualizar o resultado ou, caso tenhamos algum erro, as mensagens do compilador (spoiler: são incríveis). Ah, importante lembrar que o editor salva seu código na nuvem, e para não perder ele, lembre de salvar o link caso você vá fechar o navegador, e o link muda cada vez que você salva o código. No decorrer da serie vamos aprender a configurar o ambiente no nosso proprio computador. Agora chega de conversa e vamos colocar a mão no código.
+
+### Mão na massa
+
+Antes de tudo, vamos apagar todo o código que esta no editor de código Elm. Vamos começar com o clássico Hello World, só pra ver a coisa funcionando, talvez pareça estranho a primeira vista, mas garanto que jaja tudo vai fazer sentido.
+
+Digite (ou cole) o codigo a seguir e clique no botão "Compile" para vermos nosso primeiro Hello World:
+
+```elm{numberLines: true}
+module Main exposing (main)
+
+import Html exposing (text)
+
+main =
+    text "Hello World"
+```
+
+![](/images/elm-na-pratica-1/image-2.gif)
+
+```elm{numberLines: true}
+module Main exposing (main)
+```
+
+Na **primeira linha** definimos o nome do Módulo e o que vamos expor desse modulo. No Elm, é obrigatório definir o módulo na primeira linha do arquivo. Os valores dentro dos parêntesis após a palavra `exposing` ficarão disponíveis para que outros módulos possam importar.
+
+
+
+```elm{numberLines: true}
+import Html exposing (text)
+```
+
+Na **terceira linha** informamos que queremos usa o pacote `Html`, e dentro desse pacote eu quero o valor `text`. A sintaxe não é muito familiar, então vamos entender melhor, existem 3 maneiras de importar um módulo no Elm:
+
+**1. Importando o módulo**
+
+```elm{numberLines: true}
+import Html
+```
+
+Importando dessa maneira, teremos que utilizar o nome do pacote como _namespace_ para chamar seus valores e funções, por exemplo:
+
+```elm{numberLines: true}
+Html.text
+Html.div
+Html.span
+Html.img
+```
+
+**2. Importando o módulo expondo seus valores e/ou funções**
+
+```elm{numberLines: true}
+import Html exposing (text, div, span, img)
+```
+
+Importando dessa maneira, podemos utilizar as funções e valores diretamente, por exemplo:
+
+```elm{numberLines: true}
+text
+div
+span
+img
+```
+
+**3. Importando um módulo e expondo todos os seus valores e funções**
+
+Por último temos uma forma de exportar todos os valores e funções de um módulo de uma só vez:
+
+```elm{numberLines: true}
+import Html exposing (..)
+```
+
+Dessa forma, ao invés de deixar explícito quais itens do módulo nós queremos, utilizamos o `..` (dois pontos) para informar que queremos tudo desse módulo. E podemos utilizar os valores igual a forma #2.
+
+
+
+```elm{numberLines: true}
+main =
+    text "Hello World"
+```
+
+Agora voltando ao exemplo, **na linha 5** criamos uma variável com o nome `main`, com isso, o Elm sabe que a aplicação vai ser inicializada por essa função.
+
+E por fim, na linha 6, utilizamos a função `text` do pacote `Html` para renderizar a mensagem "Hello World" na página, perceba que no Elm, não utilizamos parênteses para executar funções, basta digitar o nome da função e em seguida informar os valores para seus parâmetros, nesse caso, uma string.
+
+### Entendendo o módulo HTML
+
+Agora que já sabemos como importar módulos, suas funções e como executá-las, vamos dar um passo adiante e entender como o módulo HTML do Elm funciona.
+
+O pacote HTML, como o próprio nome já diz, é responsável por renderizar as tags HTMLs no navegador. Agora vamos tentar utilizar algumas tags, até o momento só utilizamos a função `text` que só serve para renderizar textos.
+
+Vamos tentar utilizar a tag `div`, como já sabemos, precisamos importar essa função do pacote HTML:
+
+```diff{numberLines: true}
+-import Html exposing (text)
++import Html exposing (text, div)
+```
+
+E agora vamos utilizar ela lá no `main` do nosso código:
+
+```elm{numberLines: true}
+main =
+	div "Hello World"
+```
+
+Clique em "Compile" e veremos o que vai acontecer...
+
+![](/images/elm-na-pratica-1/image-3.gif)
+
+Parece que não deu certo. Agora conhecemos o **Elm Compiler**, uma das melhores features da linguagem. O que vimos no lado direito foi um erro de compilação, nesse caso ocorreu por quê a função `div` não está esperando uma `string` como primeiro parâmetro, mas uma lista de atributos. Como sabemos disso? O compilador nos diz tudo.
+
+#### Entendo as mensagens de erro do compilador
+
+![](/images/elm-na-pratica-1/image-4.png)
+
+Essa é uma mensagem de erro do compilador do Elm, bem diferente do que estamos acostumados não é? Agora vamos dissecar essa mensagem de erro.
+
+Na **primeira linha** temos o tipo de erro ocorreu, no caso é um **Type Mismatch** (incompatibilidade de tipos).
+
+Na **segunda linha** o compilador nos diz em qual linha o erro ocorreu, no caso, **linha 6 e coluna 6**.
+
+A partir da **terceira linha** o compilador nos dá mais detalhes de uma forma bem amigável e detalhada sobre o que está errado, perceba que o compilador se comunica da mesma forma que uma pessoa que estivesse ao seu lado falaria.
+
+Agora que já sabemos que o primeiro argumento da função `div` é uma lista de atributos (`style`, `class`, `id`, `src`, `href` usaremos eles em breve.) vamos tentar novamente passando uma lista vazia:
+
+```elm{numberLines: true}
+main =
+    div [] "Hello World"
+```
+
+Agora clique para compilar (🤞)... Outro erro:
+
+![](/images/elm-na-pratica-1/image-5.png)
+
+Bom, o tipo do erro é o mesmo do anterior (Type Mismatch). Agora o compilador nos diz que o segundo argumento da função `div` é do tipo `String` (de fato é) mas a `div` precisa que o segundo argumento seja `List (Html.Html msg)`, uma lista de html.
+
+Agora tentaremos de novo passando como segundo argumento uma lista de HTML:
+
+```elm{numberLines: true}
+main =
+    div [] [ text "Hello World" ]
+```
+
+Clique para compilar, dessa vez vai funcionar. Mas aparentemente nada mudou né? Bom, visualmente o resultado é o mesmo, mas vamos inspecionar o HTML para notarmos a diferença:
+
+
+![](/images/elm-na-pratica-1/image-6.png)
+
+Reparou que agora o texto "Hello world" está dentro de uma tag `div`? Pois é, é isso que o pacote HTML faz, transforma nosso código Elm em tags HTML que podem ser renderizadas no browser. Agora vamos trocar a `div` para um botão só para ter certeza que um botão irá aparecer:
+
+![](/images/elm-na-pratica-1/image-7.png)
+
+#### Utilizando atributos HTML
+
+Lembra que o primeiro parâmetro de uma tag HTML no Elm é uma lista de atributos? Então vamos aprender a utilizá-los agora.
+
+Podemos importar os atributos através do pacote `Html.Attributes`, vou utilizar o atributo `style` como exemplo:
+
+```elm{numberLines: true}{4,7}
+module Main exposing (main)
+
+import Html exposing (text, div)
+import Html.Attributes exposing (style)
+
+main =
+    div [ style "color" "red" ] [ text "Hello World" ]
+```
+
+Para adicionar mais atributos, basta separá-los com virgulas:
+
+```elm{numberLines: true}{8}
+module Main exposing (main)
+
+import Html exposing (div, text)
+import Html.Attributes exposing (class, style)
+
+
+main =
+    div [ style "color" "red", style "background-color" "blue", class "hello-world" ] [ text "Hello World" ]
+```
+
+#### Combinando várias tags HTML
+
+Como já vimos anteriormente, o segundo parâmetro das tags HTML é uma lista de outras tags HTML, por exemplo:
+
+```elm{numberLines: true}{9-11}
+module Main exposing (main)
+
+import Html exposing (div, span, text)
+import Html.Attributes exposing (style)
+
+
+main =
+    div []
+        [ span [ style "color" "blue" ] [ text "Hello " ]
+        , span [ style "color" "green" ] [ text "World" ]
+        ]
+```
+
+Com excessão da função `text`, todas as tags to pacote Html recebem os mesmos tipos como parâmetro: Primeiro uma lista de atributos (do pacote Html.Attributes) e uma lista de outras tags.
+
+#### Criando o HTML da nossa aplicação
+
+Agora que já sabemos utilizar o pacote HTML, vamos dar uma acelerada e criar o esqueleto da nossa aplicação:
+
+Primeiro, vou mudar o import do Html para que possamos utilizar tudo dele e alguns atributos que também vamos precisar:
+
+```diff
+- import Html exposing (div, span, text)
++ import Html exposing (..)
++ import Html.Attributes exposing(value, type_, class)
+```
+
+Em seguida vou adicionar o novo código da funçāo `main`:
+
+```diff
+main =
+	div
+-	    [ span [ style "color" "blue" ] [ text "Hello " ]
+-       , span [ style "color" "green" ] [ text "World" ]
+-       ]
++        [ div []
++           [ h1 [] [ text "Conversor de Moedas" ]
++           , form []
++               [ div []
++                   [ label []
++                       [ text "Moeda de origem" ]
++                   , div []
++                       [ select []
++                           [ option [ value "BRL" ] [ text "Real" ]
++                           , option [ value "USD" ] [ text "Dólar americano" ]
++                           , option [ value "EUR" ] [ text "Euro" ]
++                           ]
++                       ]
++                   ]
++               , div []
++                   [ label [] [ text "Moeda de destino" ]
++                   , div []
++                       [ select []
++                           [ option [ value "USD" ] [ text "Dólar americano" ]
++                           [ option [ value "BRL" ] [ text "Real" ]
++                           , option [ value "EUR" ] [ text "Euro" ]
++                           ]
++                       ]
++                   ]
++               , div []
++                   [ label [] [ text "Quantidade" ]
++                   , input [ type_ "number" ] []
++                   ]
++               , div [] [ button [] [ text "Converter" ] ]
++               ]
++           ]
+       ]
+```
+
+Então o código final ficará assim:
+
+```elm{numberLines: true}
+module Main exposing (main)
+
+import Html exposing (..)
+import Html.Attributes exposing (value, type_, class)
+
+main =
+    div []
+        [ div []
+            [ h1 [] [ text "Conversor de Moedas" ]
+            , form []
+                [ div []
+                    [ label []
+                        [ text "Moeda de origem" ]
+                    , div []
+                        [ select []
+                            [ option [ value "BRL" ] [ text "Real" ]
+                            , option [ value "USD" ] [ text "Dólar americano" ]
+                            , option [ value "EUR" ] [ text "Euro" ]
+                            ]
+                        ]
+                    ]
+                , div []
+                    [ label [] [ text "Moeda de destino" ]
+                    , div []
+                        [ select []
+                            [ option [ value "USD" ] [ text "Dólar americano" ]
+                            , option [ value "BRL" ] [ text "Real" ]
+                            , option [ value "EUR" ] [ text "Euro" ]
+                            ]
+                        ]
+                    ]
+                , div []
+                    [ label [] [ text "Quantidade" ]
+                    , input [ type_ "number" ] []
+                    ]
+                , div [] [ button [] [ text "Converter" ] ]
+                ]
+            ]
+        ]
+```
+
+O código ainda está um pouco confuso né? Nada de pânico, isso é normal, com o tempo nos, apenas lembre do que aprendemos anteriormente, cada tag HTML recebe uma lista de atributos como primeiro parâmetro e uma lista de outras tags HTML como segundo parâmetro.
+
+Agora é só clicar para compilar para ver esse HTML em ação:
+
+![](/images/elm-na-pratica-1/image-8.png)
+
+Horrível né? Mas não vai ficar assim por muito tempo.
+
+### Utilizando bibliotecas CSS
+
+Para deixar o nosso app mais bonito e não perder muito tempo estilizando, vamos utilizar uma biblioteca CSS, hoje vou escolher a [Tailwind CSS](https://tailwindcss.com/components). Para isso vamos importar o CSS no arquivo HTML do projeto (o HTML fica na parte inferior esquerda do Ellie):
+
+```diff{numberLines: true}
+<html>
+<head>
+  <style>
++    body {
++      background-color: #edf2f7;
++    }
+		/* you can style your program here */
+  </style>
++ <link href="https://unpkg.com/tailwindcss@^1.0/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body>
+  <main></main>
+  <script>
+    var app = Elm.Main.init({ node: document.querySelector('main') })
+    // you can use ports and stuff here
+  </script>
+</body>
+</html>
+```
+
+Depois de adicionar o CSS, vamos utilizá-lo no nosso código Elm:
+
+```elm{numberLines: true}
+module Main exposing (main)
+
+import Html exposing (..)
+import Html.Attributes exposing (class, type_, value)
+
+
+main =
+    div [ class "flex justify-center py-10" ]
+        [ div [ class "w-full max-w-xs" ]
+            [ h1 [ class "text-center text-2xl mb-6" ] [ text "Conversor de Moedas" ]
+            , form [ class "bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4" ]
+                [ div [ class "mb-4" ]
+                    [ label [ class "block text-gray-700 text-sm font-bold mb-2" ]
+                        [ text "Moeda de origem" ]
+                    , div [ class "relative" ]
+                        [ select
+                            [ class "block appearance-none w-full border shadow py-2 px-3 pr-8 rounded" ]
+                            [ option [ value "BRL"] [ text "Real" ] 
+                            , option [ value "USD"] [ text "Dólar americano" ]
+                            , option [ value "EUR"] [ text "Euro" ] 
+                            ]
+                        ]
+                    ]
+                , div [ class "mb-4" ]
+                    [ label [ class "block text-gray-700 text-sm font-bold mb-2" ]
+                        [ text "Moeda de destino"
+                        ]
+                    , div [ class "relative" ]
+                        [ select
+                            [ class "block appearance-none w-full border shadow py-2 px-3 pr-8 rounded" ]
+                            [ option [ value "USD" ] [ text "Dólar americano" ]
+                            , option [ value "BRL" ] [ text "Real" ] 
+                            , option [ value "EUR" ] [ text "Euro" ] 
+                            ]
+                        ]
+                    ]
+                , div [ class "mb-6" ]
+                    [ label [ class "block text-gray-700 text-sm font-bold mb-2" ]
+                        [ text "Quantidade"
+                        ]
+                    , input [ type_ "number", class "shadow appearence-none border rounded w-full py-2 px-3 text-gray" ] []
+                    ]
+                , div [ class "flex w-full" ]
+                    [ button [ class "bg-blue-500 w-full hover:bg-blue-700 text-white font-bold py-2 px-4" ] [ text "Converter" ] ]
+                ]
+            ]
+        ]
+```
+
+Agora o nosso App parece estar um pouco mais bonito:
+
+![](/images/elm-na-pratica-1/image-9.png)
+
+Você não precisa entender essas classes CSS para esse tutorial, mas caso queira saber mais, da uma olhada na [documentação do Tailwind](https://tailwindcss.com/).
+
+#### Aprendendo a criar variáveis
+
+Reparou que algumas tags possuem as mesmas classes? Para evitar duplicar código, vamos criar uma variável com esses valores.
+
+Primeiro vamos criar a variável `selectClasses` que vai possuir as classes da tag `select`, vamos colocá-la logo acima da função `main`:
+
+```elm{numberLines: true}{1-2}
+selectClasses =
+    "block appearance-none w-full border shadow py-2 px-3 pr-8 rounded"
+    
+main =
+
+-- restante do código
+```
+
+Em seguida vamos substituir as `strings`com o valor da nossa variável:
+
+```diff{numberLines: true}
+div [ class "flex justify-center py-10" ]
+        [ div [ class "w-full max-w-xs" ]
+            [ h1 [ class "text-center text-2xl mb-6" ] [ text "Conversor de Moedas" ]
+            , form [ class "bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4" ]
+                [ div [ class "mb-4" ]
+                    [ label [ class "block text-gray-700 text-sm font-bold mb-2" ]
+                        [ text "Moeda de origem" ]
+                    , div [ class "relative" ]
+                        [ select
+-                           [ class "block appearance-none w-full border shadow py-2 px-3 pr-8 rounded" ]
++                           [ class selectClasses ]
+                            [ option [ value "BRL" ] [ text "Real" ] 
+                            , option [ value "USD" ] [ text "Dólar americano" ]
+                            , option [ value "EUR" ] [ text "Euro" ] 
+                            ]
+                        ]
+                    ]
+                , div [ class "mb-4" ]
+                    [ label [ class "block text-gray-700 text-sm font-bold mb-2" ]
+                        [ text "Moeda de destino"
+                        ]
+                    , div [ class "relative" ]
+                        [ select
+-                           [ class "block appearance-none w-full border shadow py-2 px-3 pr-8 rounded" ]
++                           [ class selectClasses ]
+                            [ option [ value "USD" ] [ text "Dólar americano" ]
+                            , option [ value "BRL" ] [ text "Real" ] 
+                            , option [ value "EUR" ] [ text "Euro" ] 
+                            ]
+                        ]
+                    -- restante do código
+```
+
+## Conclusão
+
+Vou encerrar esse tutorial por aqui, mas calma que ainda não acabou, ainda vamos dar vida a nossa aplicação. Você provavelmente ainda tem muita coisa para digerir, então o ideal é ir com calma. Antes de ir para o próximo tutorial, leve o tempo que precisar para entender e se familiarizar com o módulo HTML pois será essêncial ao decorrer dessa série.
+
+Não se preocupe caso sinta-se travado, é completamente normal, você provavelmente está saindo da sua zona de conforto aprendendo uma linguagem totalmente diferente, com sintaxe diferente e paradigma diferente, mas acredite em mim, você vai conseguir.
+
+Então é isso, você pode [clicar aqui para continuar para o próximo tutorial](/20200304-elm-na-pratica-2). O resultado final da parte 1 está disponível aqui: https://ellie-app.com/88hp8WgJd5Ca1.

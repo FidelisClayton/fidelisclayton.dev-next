@@ -1,0 +1,599 @@
+---
+title: Rotas e navegação no Elm
+date: "2020-06-03T00:00:00Z"
+description: Transformando nosso conversor de moedas em uma SPA (Parte 1)
+keywords: tutorial de elm, como criar uma spa com elm
+category: Elm
+serie: Elm na prática
+episode: 8
+---
+
+Estamos chegando ao final dessa série, mas ela não ficaria completa se a gente não transformar o conversor em uma SPA, já que uma das maiores dúvidas em relação ao Elm é como trabalhar com rotas e navegação. Então para isso fazer sentido no contexto da nossa aplicação, vamos adicionar uma nova feature para ver o histórico de variação de um par de moedas, assim teremos uma rota para a conversão de moedas e outra para o históricos das moedas.
+
+## Browser.Application
+
+E finalmente vamos utilizar a terceira e última maneira de criar uma aplicação Elm, que é utilizando a função `Browser.application`, e como já era de se esperar, ela possui novas features. Essas features são responsáveis pela navegação e roteamento da aplicação.
+
+Essa é a assinatura de função do `Browser.application`:
+
+```elm
+application :
+    { init : flags -> Url -> Key -> ( model, Cmd msg )
+    , view : model -> Document msg
+    , update : msg -> model -> ( model, Cmd msg )
+    , subscriptions : model -> Sub msg
+    , onUrlRequest : UrlRequest -> msg
+    , onUrlChange : Url -> msg
+    }
+    -> Program flags model msg
+```
+
+De cada podemos temos propriedades novas e algumas outras mudaram. Agora temos `onUrlRequest` e `onUrlChange` (já já explico cada uma). Perceba que a função `init` agora também possui uma nova assinatura, além das flags, também recebemos `Url` e `Key`, e, pra finalizar, a `view` também mudou, agora precisamos retornar um `Document` em vez de `Html`.
+
+1. Vamos começar instalando o pacote `elm/url`:
+
+```sh
+elm install elm/url
+```
+
+2. Em seguida vamos importar os pacotes `Browser.Navigation` e `Url`:
+
+```diff
+port module Main exposing (main)
+
+import Browser
++import Browser.Navigation as Nav
+import Dict exposing (Dict)
+import Html exposing (..)
+import Html.Attributes exposing (class, selected, type_, value)
+import Html.Events exposing (onInput)
+import Http
+import Json.Decode
+import Json.Encode
++import Url
+```
+
+3. Agora vamos alterar a `Model` e o `init` para guardar os valores de `key` e `url`.
+
+```diff
+type alias Model =
+    { from : String
+    , to : String
+    , amount : Float
+    , currencies : HttpData String (List CurrencyRate)
++   , key : Nav.Key
++   , url : Url.Url
+    }
+
+
+-init : Json.Encode.Value -> ( Model, Cmd Msg )
++init : Json.Encode.Value -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
+-init flags =
++init flags url key =
+    let
+        currencies =
+            case Json.Decode.decodeValue (Json.Decode.list currencyRateDecoder) flags of
+                Ok decodedCurrencies ->
+                    Success decodedCurrencies
+
+                _ ->
+                    Loading
+    in
+    ( { from = "BRL"
+      , to = "EUR"
+      , amount = 1
+      , currencies = currencies
++     , key = key
++     , url = url
+      }
+    , getCurrencyRates
+    )
+```
+
+4. Vamos atualizar a `view` para que ela retorne `Document Msg` em vez de `Html Msg`. O `Document` é um `Record` que possui dois campos:
+
+```elm
+type alias Document msg =
+    { title : String
+    , body : List (Html msg)
+    }
+```
+
+A `view` atualizada ficará assim:
+
+```elm
+view : Model -> Browser.Document Msg
+view model =
+    { title = "Conversor de moedas"
+    , body =
+        [ div [ class "flex justify-center py-10" ]
+            [ div [ class "w-full max-w-xs" ]
+                [ h1 [ class "text-center text-2xl mb-6" ] [ text "Conversor de Moedas" ]
+                , form [ class "bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4" ]
+                    (case model.currencies of
+                        Success currencies ->
+                            let
+                                result =
+                                    convertCurrency model.amount model.from model.to currencies
+                            in
+                            [ div [ class "mb-4" ]
+                                [ label [ class "block text-gray-700 text-sm font-bold mb-2" ] [ text "Moeda de origem" ]
+                                , div [ class "relative" ]
+                                    [ select
+                                        [ class selectClasses, value model.from, onInput ChangeOriginCurrency ]
+                                        [ option [ value "BRL", selected (model.from == "BRL") ] [ text "Real" ]
+                                        , option [ value "USD", selected (model.from == "USD") ] [ text "Dólar americano" ]
+                                        , option [ value "EUR", selected (model.from == "EUR") ] [ text "Euro" ]
+                                        ]
+                                    ]
+                                ]
+                            , div [ class "mb-4" ]
+                                [ label [ class "block text-gray-700 text-sm font-bold mb-2" ]
+                                    [ text "Moeda de destino" ]
+                                , div [ class "relative" ]
+                                    [ select
+                                        [ class selectClasses, value model.to, onInput ChangeDestinyCurrency ]
+                                        [ option [ value "USD", selected (model.to == "USD") ] [ text "Dólar americano" ]
+                                        , option [ value "BRL", selected (model.to == "BRL") ] [ text "Real" ]
+                                        , option [ value "EUR", selected (model.to == "EUR") ] [ text "Euro" ]
+                                        ]
+                                    ]
+                                ]
+                            , div [ class "mb-6" ]
+                                [ label [ class "block text-gray-700 text-sm font-bold mb-2" ]
+                                    [ text "Quantidade" ]
+                                , input [ type_ "number", onInput ChangeAmount, value (String.fromFloat model.amount), class "shadow appearence-none border rounded w-full py-2 px-3 text-gray" ] []
+                                ]
+                            , div [ class "flex w-full" ]
+                                [ button [ class "bg-blue-500 w-full hover:bg-blue-700 text-white font-bold py-2 px-4" ] [ text "Converter" ] ]
+                            , div [ class "flex w-full text-center mt-5 text-gray-700 text-sm" ]
+                                [ text ("Convertendo " ++ String.fromFloat model.amount ++ " " ++ model.from ++ " para " ++ model.to ++ " totalizando " ++ String.fromFloat result ++ " " ++ model.to) ]
+                            ]
+
+                        Loading ->
+                            [ div [ class "text-center" ] [ text "Carregando..." ] ]
+
+                        Error error ->
+                            [ div [ class "text-center text-red-700" ] [ text error ] ]
+                    )
+                ]
+            ]
+        ]
+    }
+```
+
+5. Vamos atualizar a função `main` para utilizar `Browser.application`:
+
+```diff
+main : Program Json.Encode.Value Model Msg
+main =
+-   Browser.element
++   Browser.application
+        { init = init
+        , view = view
+        , update = update
+        , subscriptions = subscriptions
++       , onUrlChange = \_ -> Debug.todo "onUrlChanged"
++       , onUrlRequest = \_ -> Debug.todo "onUrlRequest"
+        }
+
+```
+
+Aqui estamos utilizando `Debug.todo`, é uma forma de dizer ao Elm que ainda não temos um código válido para esta parte e que vamos implementar depois. Em runtime, esse `Debug.todo` vai gerar uma exceção para que a gente lembre de que realmente precisamos implementar essa parte do código.
+
+Agora nosso código já deve compilar. Você vai perceber que nada mudou, mas se olharmos a `model` usando o Debugger, veremos que os campos `url` e `key` estão preenchidos:
+
+![](/images/elm-na-pratica-8/image-1.png)
+
+Depois disso vamos importar o `href` do `Html.Attributes`:
+
+```diff
+-import Html.Attributes exposing (class, selected, type_, value)
++import Html.Attributes exposing (class, href, selected, type_, value)
+```
+
+E agora adicionaremos dois links abaixo do conversor:
+
+```diff
+                        Error error ->
+                            [ div [ class "text-center text-red-700" ] [ text error ] ]
+                    )
++               , a [ href "/", class "mx-2" ] [ text "Conversor" ]
++               , a [ href "/history", class "mx-2" ] [ text "Histórico" ]
+                ]
+            ]
+        ]
+    }
+```
+
+Se você clicar em algum dos links, vai perceber que uma mensagem de erro será exibida, isso é causado pelo `Debug.todo`. Perceba que, nesse caso, o `Debug.todo` é causado pelo `onUrlRequest`.
+
+![](/images/elm-na-pratica-8/image-2.png)
+
+Isso significa que toda vez que a gente clicar em um link, o `Browser.application` vai chamar o `onUrlRequest`. Vamos começar criando uma `Msg` para esse campo, vamos chamá-la de `LinkClicked`:
+
+```diff
+type Msg
+    = ChangeOriginCurrency String
+    | ChangeDestinyCurrency String
+    | ChangeAmount String
+    | GotCurrencyRates (Result Http.Error (List CurrencyRate))
++   | LinkClicked Browser.UrlRequest
+```
+
+O `Browser.UrlRequest` possui dois valores:
+
+```elm
+type UrlRequest
+  = Internal Url.Url
+  | External String
+```
+
+Então, no `update` precisamos tratá-los de maneira diferente. 
+
+- `External`: Quando a url requisitada leva para uma página fora da aplicação atual. Quando isso acontecer, nós vamos carregar essa nova página utilizando o comando `Nav.load`. O resultado é o equivalente a digitar o link na barra de endereço do navegador e apertar enter. Depois que a nova página for carregada, a `model` da sua aplicação será resetada caso o usuário volte para a aplicação.
+- `Internal`: Quando a url requisitada for uma leva para uma página dentro da própria aplicação. Nesse caso vamos enviar o comando `Nav.pushUrl`, por baixo dos panos isso vai executar a API nativa de `history` do browser ( `window.history.push`). Aqui, o usuário pode ir e vir utilizando a função do navegador que o estado da `model` não será perdido.
+
+Vamos implementar o `LinkClicked` na função `update`:
+
+```diff
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case msg of
++        LinkClicked urlRequest ->
++            case urlRequest of
++                Browser.Internal url ->
++                    ( model, Nav.pushUrl model.key (Url.toString url) )
++
++                Browser.External href ->
++                    ( model, Nav.load href )
++
+        ChangeOriginCurrency currencyCode ->
+            ( { model | from = currencyCode }, Cmd.none )
+```
+
+E vamos passar essa `Msg` para a `application`:
+
+```diff
+main : Program Json.Encode.Value Model Msg
+main =
+    Browser.application
+        { init = init
+        , view = view
+        , update = update
+        , subscriptions = subscriptions
+        , onUrlChange = \_ -> Debug.todo "onUrlChanged"
+-       , onUrlRequest = \_ -> Debug.todo "onUrlRequest"
++       , onUrlRequest = LinkClicked
+        }
+```
+
+Agora se você clicar nos links verá que o erro aparecerá de novo, só que agora é relacionado ao `onUrlChanged`:
+
+![](/images/elm-na-pratica-8/image-3.png)
+
+Então toda vez que a gente clica em um link, e esse link é interno e `Nav.pushUrl` é executado, o `Browser.application` vai chamar o `onUrlChange`. O `onUrlChange` também é chamado quando o usuário utiliza a função de **voltar** e **avançar**  no navegador.
+
+O que precisamos fazer é salvar a nova `url` que vamos receber através do `onUrlChange`. Então vamos criar uma nova `Msg` que ficará responsável por passar esse valor para o `update` que salvará ele na `model`:
+
+```diff
+type Msg
+    = ChangeOriginCurrency String
+    | ChangeDestinyCurrency String
+    | ChangeAmount String
+    | GotCurrencyRates (Result Http.Error (List CurrencyRate))
+    | LinkClicked Browser.UrlRequest
++   | UrlChanged Url.Url
+```
+
+Salvando na `model`:
+
+```diff
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case msg of
+        LinkClicked urlRequest ->
+            case urlRequest of
+                Browser.Internal url ->
+                    ( model, Nav.pushUrl model.key (Url.toString url) )
+
+                Browser.External href ->
+                    ( model, Nav.load href )
+
++       UrlChanged url ->
++           ( { model | url = url }, Cmd.none )
++
+        ChangeOriginCurrency currencyCode ->
+            ( { model | from = currencyCode }, Cmd.none )
+```
+
+E por fim vamos passar o `UrlChanged` para o `Browser.application`:
+
+```diff
+main : Program Json.Encode.Value Model Msg
+main =
+    Browser.application
+        { init = init
+        , view = view
+        , update = update
+        , subscriptions = subscriptions
+-       , onUrlChange = \_ -> Debug.todo "onUrlChanged"
++       , onUrlChange = UrlChanged
+        , onUrlRequest = LinkClicked
+        }
+```
+
+Agora se clicarmos nos links veremos que a `model` está sendo atualizada. Agora podemos utilizar esse valor para decidir qual página iremos exibir.
+
+![](/images/elm-na-pratica-8/image-4.gif)
+
+## Rotas e URL parsing
+
+O próximo passo é definir as rotas da aplicação. Essas são as duas possíveis rotas:
+
+- `/`: rota que exibirá o conversor.
+- `/history/from/{moeda de origem}/to/{moeda de destino}`: rota que exibirá o histórico. Precisaremos "*parsear*" essa `url` para extrair os valores da moeda de origem e destino.
+
+Vamos começar criando um novo arquivo chamado `Route.elm`. Dentro dele criaremos um `type` e cada `branch` desse `type` será uma rota:
+
+```elm
+module Route exposing (Route(..))
+
+type Route
+        = Home
+        | History String String
+        | NotFound
+```
+
+O `History` virá acompanhado de duas `String`, esses serão os valores da moeda de origem e moeda de destino.
+
+O próximo passo é fazer o `parsing` dessas rotas. O processo de `parsing` se resume a transformar uma url (no formato de string) em estruturas de dados que possamos trabalhar com mais facilidade. O pacote `elm/url` nos fornece várias funções que irão nos auxiliar nesse processo. Vamos começar:
+
+```diff
+-module Route exposing (Route)
++module Route exposing (Route, routeParser)
++
++import Url.Parser as Parser exposing ((</>))
+
+type Route
+        = Home
+        | History String String
+        | NotFound
+
+
++routeParser : Parser.Parser (Route -> a) a
++routeParser =
++   Parser.oneOf
++       [ Parser.map Home Parser.top
++       , Parser.map History (Parser.s "history" </> Parser.s "from" </> Parser.string </> Parser.s "to" </> Parser.string)
++       ]
+
+```
+
+Pronto, terminamos de escrever o `parser`. Agora vamos entender como isso funciona:
+
+```elm
+Parser.map Home Parser.top
+```
+
+O `Parser.top` indica que vamos pegar o ponto inicial da aplicação (`/`). O `Parser.map` vai atribuir essa rota `/` ao tipo `Home`. Então toda vez que a url for `/`, a rota será `Home`.
+
+```elm
+Parser.map History (Parser.s "history" </> Parser.s "from" </> Parser.string </> Parser.s "to" </> Parser.string)
+```
+
+Esse é mais complicado mas o conceito é o mesmo. Vamos quebrar esse código mais um pouco:
+
+```elm
+Parser.s "history" -- 1
+</> -- 2
+Parser.s "from" -- 3
+</> -- 4
+Parser.string -- 5
+</> -- 6
+Parser.s "to" -- 7
+</> -- 8
+Parser.string -- 9
+```
+
+- 1, 3 e 7: Utilizando a função `Parser.s` para dizer ao Elm que existe um segmento na url com exatamente o valor que especificamos, no nosso caso, a terá uma parque com `"history"`, outra com `"from" e outra com `"to".
+- 2, 4, 6 e 8: O operador `</>` serve para representar uma barra (`/`) na url, então sempre que quisermos representar um segmento da url, utilizaremos o `</>`.
+- 5 e 9: Dizemos ao Elm que queremos extrair esse segmento da URL em forma de `String`, então poderemos utilizar esse valores dentro da aplicação.
+
+Exemplo:
+
+```elm
+-- Input:              "history         /       from        /       BRL       /        to       /       EUR"
+--                         |            |         |         |        |        |         |       |        |
+--                         v            v         v         v        v        v         v       v        v
+Parser.map History (Parser.s "history" </> Parser.s "from" </> Parser.string </> Parser.s "to" </> Parser.string)
+--            |      ________________________________________________|                                   |
+--            |      |                                                                                   |
+--            V      V                                                                                   |
+-- Output: History "BRL" "EUR" <-________________________________________________________________________|
+```
+
+- `history/from/BRL/to/EUR`: `History "BRL" "EUR"`
+- `history/from/USD/EUR`: `History "USD" "EUR"`
+
+Agora vamos criar a função `fromUrl`, ela vai receber um valor do tipo `Url` e retornar um `Route`:
+
+```diff
+-module Route exposing (Route, routeParser)
++module Route exposing (Route, fromUrl, routeParser)
+
++import Url exposing (Url)
+import Url.Parser as Parser exposing ((</>))
+
+
+type Route
+    = Home
+    | History String String
+    | NotFound
+
+
+routeParser : Parser.Parser (Route -> a) a
+routeParser =
+    Parser.oneOf
+        [ Parser.map Home Parser.top
+        , Parser.map History (Parser.s "history" </> Parser.s "from" </> Parser.string </> Parser.s "to" </> Parser.string)
+        ]
+
+
++fromUrl : Url -> Route
++fromUrl url =
++   Parser.parse routeParser url
++       |> Maybe.withDefault NotFound
+```
+
+Pronto, agora já temos uma forma de transformar a URL em um valor do tipo `Route`, isso vai ser muito útil daqui pra frente.
+
+## Alternando as views de acordo com a URL
+
+Agora vamos fazer com que a `view` mude de acordo com a rota atual. Para isso, vamos utilizar a função `fromUrl` e então utilizar os valores de `Route` para saber quando cada rota deve ser exibida.
+
+No arquivo `Main.elm`, vamos começar importando o módulo `Route`:
+
+```diff
+port module Main exposing (main)
+
+import Browser
+import Browser.Navigation as Nav
+import Dict exposing (Dict)
+import Html exposing (..)
+import Html.Attributes exposing (class, href, selected, type_, value)
+import Html.Events exposing (onInput)
+import Http
+import Json.Decode
+import Json.Encode
++import Route
+import Url
+```
+
+Em seguida vamos renomear a função `view` para `viewHome`, pois elá só irá renderizar a página inicial:
+
+```elm
+viewHome : Model -> Browser.Document Msg
+viewHome model =
+    { title = "Conversor de moedas"
+    , body =
+        [ div [ class "flex justify-center py-10" ]
+            [ div [ class "w-full max-w-xs" ]
+                [ h1 [ class "text-center text-2xl mb-6" ] [ text "Conversor de Moedas" ]
+                , form [ class "bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4" ]
+                    (case model.currencies of
+                        Success currencies ->
+                            let
+                                result =
+                                    convertCurrency model.amount model.from model.to currencies
+                            in
+                            [ div [ class "mb-4" ]
+                                [ label [ class "block text-gray-700 text-sm font-bold mb-2" ] [ text "Moeda de origem" ]
+                                , div [ class "relative" ]
+                                    [ select
+                                        [ class selectClasses, value model.from, onInput ChangeOriginCurrency ]
+                                        [ option [ value "BRL", selected (model.from == "BRL") ] [ text "Real" ]
+                                        , option [ value "USD", selected (model.from == "USD") ] [ text "Dólar americano" ]
+                                        , option [ value "EUR", selected (model.from == "EUR") ] [ text "Euro" ]
+                                        ]
+                                    ]
+                                ]
+                            , div [ class "mb-4" ]
+                                [ label [ class "block text-gray-700 text-sm font-bold mb-2" ]
+                                    [ text "Moeda de destino" ]
+                                , div [ class "relative" ]
+                                    [ select
+                                        [ class selectClasses, value model.to, onInput ChangeDestinyCurrency ]
+                                        [ option [ value "USD", selected (model.to == "USD") ] [ text "Dólar americano" ]
+                                        , option [ value "BRL", selected (model.to == "BRL") ] [ text "Real" ]
+                                        , option [ value "EUR", selected (model.to == "EUR") ] [ text "Euro" ]
+                                        ]
+                                    ]
+                                ]
+                            , div [ class "mb-6" ]
+                                [ label [ class "block text-gray-700 text-sm font-bold mb-2" ]
+                                    [ text "Quantidade" ]
+                                , input [ type_ "number", onInput ChangeAmount, value (String.fromFloat model.amount), class "shadow appearence-none border rounded w-full py-2 px-3 text-gray" ] []
+                                ]
+                            , div [ class "flex w-full" ]
+                                [ button [ class "bg-blue-500 w-full hover:bg-blue-700 text-white font-bold py-2 px-4" ] [ text "Converter" ] ]
+                            , div [ class "flex w-full text-center mt-5 text-gray-700 text-sm" ]
+                                [ text ("Convertendo " ++ String.fromFloat model.amount ++ " " ++ model.from ++ " para " ++ model.to ++ " totalizando " ++ String.fromFloat result ++ " " ++ model.to) ]
+                            ]
+
+                        Loading ->
+                            [ div [ class "text-center" ] [ text "Carregando..." ] ]
+
+                        Error error ->
+                            [ div [ class "text-center text-red-700" ] [ text error ] ]
+                    )
+                , a [ href "/", class "mx-2" ] [ text "Conversor" ]
+                , a [ href "/history", class "mx-2" ] [ text "Histórico" ]
+                ]
+            ]
+        ]
+        }
+```
+
+Agora vamos criar as funções `viewHistory` e `viewNotFound`:
+
+```elm
+viewHistory : String -> String -> Model -> Browser.Document Msg
+viewHistory from to model =
+        { title = "Histórico"
+        , body =
+                [ text <| "Histórico de " ++ from ++ " x " ++ to
+                , div [ class "mt-2"] [ a [ href "/", class "mx-2"] [ text "Conversor"] ]
+                ]
+        }
+        
+viewNotFound : Model -> Browser.Document Msg
+viewNotFound model =
+        { title = "404"
+        , body =
+                [ text "Página não encontrada"
+                , div [ class "mt-2"] [ []]
+                ]
+        }
+```
+
+E, por fim, a `view` ficará assim:
+
+```elm
+view : Model -> Browser.Document Msg
+view model =
+    case Route.fromUrl model.url of
+        Route.NotFound ->
+            viewNotFound model
+
+        Route.History from to ->
+            viewHistory from to model
+
+        Route.Home ->
+            viewHome model
+```
+
+Basicamente, nós utilizamos o `Route.fromUrl` pra fazer o *parsing* da `model.url`, o resultado disso é a rota atual, e baseado nessa rota atual nós chamados a função responsável por renderizar essa rota.
+
+Vamos testar:
+
+![](/images/elm-na-pratica-8/image-5.gif)
+
+As rotas estão funcionando, mas o link do histórico está incorreto. Vamos corrigi-lo na função `viewHome`:
+
+```diff
+- a [ href "/history", class "mx-2" ] [ text "Histórico" ]
++ a [ href "/history/from/EUR/to/BRL", class "mx-2" ] [ text "Histórico de BRL x EUR" ]
+```
+
+Pronto, perceba que agora estamos exibindo os valores da URL:
+
+![](/images/elm-na-pratica-8/image-6.gif)
+
+## Conclusão
+
+Neste tutorial conseguimos fazer com que a aplicação renderize uma `view` baseado na URL atual. Esse é o primeiro passo para transformar o nosso conversor em uma **SPA**. No próximo tutorial vamos implementar a página de histórico, que exibirá a cotação de duas moedas em um determinado período.
+
+O código atualizado está disponível aqui: https://github.com/FidelisClayton/elm-currency-app/tree/parte-8-1
+
+Até a próxima!

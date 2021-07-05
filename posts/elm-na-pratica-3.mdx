@@ -1,0 +1,551 @@
+---
+title: Events, Pattern Matching, Maybe, Dict e implementando a lógica do conversor
+date: "2020-03-04T00:00:02Z"
+keywords: tutorial de elm, tutorial de elmlang, elm, elmlang, como aprender elm, elm na pratica, aprender elm, como aprender elm, elm para iniciantes
+description: Aprenda a tornar sua aplicação interativa utilizando Events e o poder do patern matching.
+category: Elm
+serie: Elm na prática
+episode: 3
+---
+Chegamos na terceira parte dessa série de tutoriais sobre Elm, e hoje finalmente vamos implementar a lógica da nossa aplicação. O código dos tutoriais anteriores está disponível nesse link: https://ellie-app.com/88hXjYRzqbwa1.
+
+Continuando nosso conversor, hoje vamos implementar o cálculo da conversão e para isso vamos aprender algumas coisas novas: O pacote `Html.Events`, `Pattern Matching`, `Result` e `Dict`.
+
+## Definindo as ações do usuário
+
+Antes de tudo vamos precisar definir quais são as ações que o usuário poderá executar dentro da aplicação, por enquanto ele poderá:
+
+- Alterar a moeda de origem
+- Alterar a moeda de destino
+- Alterar a quantia que será convertido
+- Clicar para calcular
+
+Agora vamos criar uma mensagem (a partir de agora vou chamar mensagem de `msg`, é uma abreviação adotada por toda a comunidade de desenvolvedores Elm) para cada uma dessas ações, para isso vamos criar um **Custom Type**.
+
+### Custom Type
+
+Ainda não entramos de cabeça no assunto tipos mas falando sem dar muitos detalhes, no Elm temos vários tipos predefinidos, por exemplo: `Boolean`, `Int`, `Float`, `String`, `List`, e nós também podemos criar nossos próprios tipos sempre que for necessário, dando um exemplo simples, se quisermos criar nosso próprio tipo booleano poderiamos fazer dessa forma:
+
+```elm
+type Booleano = Verdadeiro | Falso
+```
+
+Viu como é simples? Em um **Custom Type** nós definimos quais são os possíveis valores que ele pode assumir, separados por uma barra vertical `|`. Aqui vai mais um exemplo pra deixar mais claro:
+
+```elm
+--   <nome do tipo>  = <valor 1> | <valor 2> | <valor 3> | <valor 4> | <valor 5>
+type Animal          = Dog       | Cat       | Cow       | Duck      | Fox
+```
+
+Agora mais um detalhe sobre os **Custom Types**, podemos associar dados à suas variações. Por exemplo, poderiamos descrever o progresso de uma requisição HTTP dessa maneira:
+
+```elm
+type HttpProgress
+    = NotAsked
+    | InProgress
+    | Success Data
+    | Error String
+```
+
+Presta atenção nos dois últimos valores, eles possuem um tipo após o nome do valor, isso quer dizer que a variação`Success` possui um valor do tipo `Data` e a variação `Error` possui um valor do tipo `String` que nesse caso pode ser uma mensagem de erro. Por exemplos:
+
+```elm
+Success { username = "john.doe", lastName = "Doe" }
+Error "Something went wrong and we couldn't find the user"
+```
+
+Já entendeu onde quero chegar? Se você pensou que vamos criar um tipo para a nossa `msg`, parabéns, você está certo. Então vamos lá:
+
+```diff
+init =
+    { from = "BRL"
+    , to = "EUR"
+    , amount = 0
+    , result = 0
+    }
+
++ type Msg
++       = ChangeOriginCurrency String
++       | ChangeDestinyCurrency String
++       | ChangeAmount String
++       | SubmitForm
+
+update msg model =
+    model
+```
+
+Aqui definimos que nossa `Msg` pode assumir 4 possíveis valores:
+
+- `ChangeOriginCurrency`: Alterar a moeda de origem
+- `ChangeDestinyCurrency`: Alterar a moeda de destino
+- `ChangeAmount`: Alterar a quantia que será convertida
+- `FormSubmitted`: Clicar para calcular
+
+`ChangeOriginCurrency`, `ChangeDestinyCurrency` e `ChangeAmount` vão receber o valor dos seus respectivos inputs.
+
+## Coletando o input do usuário
+
+Antes de tudo vamos precisar coletar  as informações que o usuário inseriu no formulário, para isso iremos utilizar a biblioteca `Html.Events`, é ela que possui funções como `onClick`, `onInput`, `onSubmit` e várias outras. Vamos começar importando o `onInput` e `onSubmit`:
+
+```diff
+module Main exposing (main)
+
+import Browser
+import Html exposing (..)
+import Html.Attributes exposing (class, type_, value, selected)
++ import Html.Events exposing (onInput, onSubmit)
+```
+
+Nós utilizamos os `Events` da mesma forma que os `Attributes`, passando eles na lista do primeiro argumento de uma tag HTML. Esses eventos precisam de um parâmetro que será a `msg` a ser enviada para a função `update`, vamos começar adicionar o evento de `onInput` no campo de moeda de origem e passaremos a mensagem `ChangeOriginCurrency`:
+
+```diff
+[ label [ class "block text-gray-700 text-sm font-bold mb-2" ] [ text "Moeda de origem" ]
+  , div [ class "relative" ]
+  [ select
+-   [ class selectClasses, value model.from ]
++   [ class selectClasses, value model.from, onInput ChangeOriginCurrency ]
+    [ option [ value "BRL", selected (model.from == "BRL") ] [ text "Real" ] 
+      , option [ value "USD", selected (model.from == "USD") ] [ text "Dólar americano" ]
+      , option [ value "EUR", selected (model.from == "EUR") ] [ text "Euro" ] 
+    ]
+  ]
+]
+
+```
+
+Talvez você tenha percebido que não passamos nenhum parâmetro para a `msg` `ChangeOriginCurrency`, isso se deve ao fato de que o `onInput` vai fazer isso para nós automaticamente. Agora vamos checar se isso está funcionando, vamos mudar o valor da moeda de origem e utilizar o debugger para ver se a mensagem foi emitida:
+
+![](/images/elm-na-pratica-3/image-1.gif)
+
+O valor do input da moeda de origem não mudou quando selecionamos outra moeda, isso aconteceu por quê ainda não implementamos isso na função `update` mas quando abrimos o **Debugger** (no menu superior direto) vimos que a mensagem foi enviada, e observe que a barra lateral esquerda mostra as duas mensagens que foram emitidas por que mudamos a moeda duas vezes.
+
+![](/images/elm-na-pratica-3/image-2.png)
+
+Agora vamos adicionar as outras mensagens no nosso HTML para finalmente implementar o `update`.
+
+**Adicionando a mensagem de submit no formulário:**
+
+```diff
+-, form [ class "bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4" ]
++, form [ onSubmit SubmitForm, class "bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4" ]
+```
+
+**Adicionando a mensagem no input da moeda de destino**:
+
+```diff
+[ label [ class "block text-gray-700 text-sm font-bold mb-2" ]
+    [ text "Moeda de destino"
+    ]
+, div [ class "relative" ]
+    [ select
+-       [ class selectClasses, value model.to ]
++       [ class selectClasses, value model.to, onInput ChangeDestinyCurrency ]
+        [ option [ value "USD", selected (model.to == "USD") ] [ text "Dólar americano" ]
+        , option [ value "BRL", selected (model.to == "BRL") ] [ text "Real" ]
+        , option [ value "EUR", selected (model.to == "EUR") ] [ text "Euro" ]
+        ]
+    ]
+]
+```
+
+**Adicionando a mensagem no input da quantia a ser convertida:**
+
+```diff
+[ label [ class "block text-gray-700 text-sm font-bold mb-2" ]
+    [ text "Quantidade"
+    ]
+-, input [ type_ "number", value (String.fromFloat model.amount), class "shadow appearence-none border rounded w-full py-2 px-3 text-gray" ] []
++, input [ type_ "number", onInput ChangeAmount, value (String.fromFloat model.amount), class "shadow appearence-none border rounded w-full py-2 px-3 text-gray" ] []
+]
+```
+
+Código até agora: https://ellie-app.com/88LQtVdRPxka1.
+
+## Implementando a função update
+
+Agora que todos os eventos estão no lugar, chegou o tão esperado momento de implementar o `update`, então vamos lâ:
+
+```diff
+update msg model =
+-   model
++   case msg of
++       ChangeOriginCurrency currencyCode ->
++           { model | from = currencyCode }
++
++       ChangeDestinyCurrency currencyCode ->
++           { model | to = currencyCode }
++
++       ChangeAmount amount ->
++           { model | amount = amount }
+```
+
+Aha! Achou que não iriamos aprender nada novo? Te apresento o **Pattern Matching**.
+
+### Pattern Matching
+
+O Pattern Matching está bem presente nas linguagens funcionais, no Elm ele aparece na forma `case ... of` e nos possibilita tratar diferentes "branchs" (possibilidades)  de um determinado valor. Aqui vai um exemplo:
+
+```elm
+type Animal = Dog | Cat | Cow | Duck | Fox
+
+makeSound animal =
+    case animal of
+        Dog -> "woof"
+        Cat -> "meow"
+        Cow -> "moo"
+        Duck -> "quack"
+```
+
+A sintaxe não é muito complexa, iniciamos com `case <nome da variável> of` e em seguida listamos cada possível valor e após a seta (`->`) podemos retornar algo baseado no valor.
+
+Um fato muito importante sobre o `case ... of` é que você obrigatóriamente precisa tratar todos os possíveis casos, se tentarmos compilar o código acima, o compilador vai nos avisar que esquecemos de tratar um dos possiveis valores (`Fox`):
+
+![](/images/elm-na-pratica-3/image-3.png)
+
+Isso é uma das coisas que contribuem para que uma aplicação Elm nunca cause erros enquanto está sendo executada, o compilador faz com que seja impossível deixar pontas soltas. Para corrigir isso basta adicionar a "branch" que não foi tratada:
+
+```diff
+type Animal = Dog | Cat | Cow | Duck | Fox
+
+makeSound animal =
+    case animal of
+        Dog -> "woof"
+        Cat -> "meow"
+        Cow -> "moo"
+        Duck -> "quack"
++       Fox -> "Ring-ding-ding-ding-dingeringeding!"
+```
+
+O uso do `case ... of` não se limita a Custom Types, pode ser utilizado com vários outros tipos, como **String**, **List**, **Dict** e vários outros.
+
+Com o `case .. of` também conseguimos acessar os valores associados a uma determinada branch, como fizemos com o nosso `update`:
+
+```elm
+update msg model =
+    case msg of
+    -- Nome da mensagem    Valor associado
+    --       |                   |
+    --       v                   V
+        ChangeOriginCurrency currencyCode ->
+    --                           ^
+    --                           |
+    --            Aqui embaixo utilizamos esse valor
+    --                           |
+    --                           V
+            { model | from = currencyCode }
+```
+
+Agora voltando ao nosso código (que no momento está assim: https://ellie-app.com/88MrJPM5Bmza1), se tentarmos compilar receberemos o seguinte erro:
+
+![](/images/elm-na-pratica-3/image-4.png)
+
+O compilador está dizendo que estamos definindo o `amount` com um valor do tipo `String` *[1]* mas que na verdade o `amount` é do tipo `Float` *[2]*. No final *[3]* do erro ele nos dá uma dica: "***Quer converter uma String para Float? Use a função `String.toFloat`!***". Perfeito! Era justamente isso que a gente precisava. De fato não estavamos convertendo os valores, observe o trecho seguinte:
+
+```elm
+ChangeAmount amount ->
+    { model | amount = amount }
+```
+
+O `ChangeAmount` nos trás o valor como `String` por que é o que recebemos do `input`, logo precisaremos converter o amount para `Float` utilizando a função `String.toFloat`. Então vamos nessa:
+
+```diff
+update msg model =
+    case msg of
+        ChangeOriginCurrency currencyCode ->
+            { model | from = currencyCode }
+
+        ChangeDestinyCurrency currencyCode ->
+            { model | to = currencyCode }
+
+        ChangeAmount amount ->
+-            { model | amount = amount }
++            { model | amount = String.toFloat amount }
+```
+
+Agora deve dar tudo certo né? Errado! Repara na mensagem de erro:
+
+![](/images/elm-na-pratica-3/image-5.png)
+
+Novamente os tipos não combinam, dessa vez estamos passando o tipo `Maybe Float` *[1]* mas o esperado é `Float` *[2]*. Mais uma coisa nova pra você, o tipo **Maybe**.
+
+### Entendendo o Maybe
+
+O **Maybe** é um tipo que representa um valor que talvez não exista. Ficou meio confuso né? Deixa eu dar alguns exemplos de "valores que talvez não existam":
+
+- **Pegar o primeiro item de uma lista de números**: O resultado dessa operação deve ser representado por um **Maybe** pois existe a possibilidade da lista não possuir o primeiro item, por exemplo quando ela estiver vazia.
+- **Pegar o último item de uma lista de números**: Mesma coisa do exemplo anterior, se a lista estiver vazia não existirá o último item, logo, o resultado deve ser representado por um **Maybe**.
+- **Converter uma String para Float**: Aqui é o caso que estamos enfrentando, existe a possibilidade de uma String não ser convertida para Float. Alguns exemplos:
+  - "`10"`: pode ser convertido pois representa um número
+  - `"Dez"`, "Elm": não pode ser convertido pois não é um número.
+
+Percebeu o quanto esse tipo é importante? O **Maybe** possui duas branchs: `Just value` e `Nothing`:
+
+```elm
+type Maybe a = Just a | Nothing
+```
+
+Isso significa que um **Maybe** pode ter um valor (`Just`) ou nada (`Nothing`). Alguns exemplos para fixar melhor:
+
+- Primeiro item da lista `[]` (vazia): `Nothing`
+- Primeiro item da lista `[1, 2, 3, 4]`: `Just 1`
+- Convertendo `"Elm"` para float: `Nothing`
+- Convertendo `"10"` para float: `Just 10`
+
+Podemos pegar o valor de um **Maybe** utilizando o `case .. of`:
+
+```elm
+case (String.toFloat "10") of
+    Just value ->
+        "O valor é " ++ (String.fromFloat value)
+    Nothing ->
+        "O resultado da conversão é inválido."
+```
+
+Agora voltando ao nosso conversor, vamos tratar o `Maybe Float`:
+
+```diff
+update msg model =
+    case msg of
+        ChangeOriginCurrency currencyCode ->
+            { model | from = currencyCode }
+
+        ChangeDestinyCurrency currencyCode ->
+            { model | to = currencyCode }
+
+        ChangeAmount amount ->
+-            { model | amount = String.toFloat amount }
++            case String.toFloat amount of
++               Just value ->
++                   { model | amount = value }
++               Nothing ->
++                   model
+```
+
+Neste caso, se receber-mos `Nothing` não faremos nada e retornaremos a model sem modificações.
+
+Agora clique para compilar, provavelmente não vai funciona pois não implementamos o `SubmitForm`.
+
+![](/images/elm-na-pratica-3/image-6.png)
+
+O código atualizado está aqui: https://ellie-app.com/88MZ6t4bmnba1.
+
+## Calculando a conversão
+
+Chegamos na última e principal função da nossa aplicação, agora vamos implementar a conversão das moedas. 
+
+Antes de tudo, precisamos dos valores das moedas, até agora não temos eles. Pra facilitar as coisas vamos inventar uma variável com alguns valores fictícios. Para isso vou utilizar uma estrutura de dados do tipo `Dict` para nos auxiliar.
+
+### Entendendo o Dict
+
+O **Dict** é bem parecido com o **Record** que aprendemos no tutorial anterior. Ele possui chaves e valores mas suas chaves podem ser do tipo `Int`, `Float`, `Time`, `Char`, `String` e alguns outros.
+
+Podemos criar um Dict dessa forma:
+
+```elm
+myDict =
+    Dict.fromList [ ("chave1", 1), ("chave2", 2) ]
+```
+
+E temos funções para inserir, atualizar, e recuperar valores dele:
+
+```elm
+Dict.insert "chave3" 3 myDict
+Dict.remove "chave3" myDict
+Dict.get "chave3" myDict -- vai retornar um Maybe pois é possível que a chave não exista no Dict
+```
+
+Agora vamos criar algumas variáveis para as nossas moedas utilizando o **Dict**, primeiro vamos importar o módulo:
+
+```diff
+module Main exposing (main)
+
+import Browser
++ import Dict
+import Html exposing (..)
+import Html.Attributes exposing (class, selected, type_, value)
+import Html.Events exposing (onInput, onSubmit)
+```
+
+Em seguida vamos criar as variáveis:
+
+```diff
+selectClasses =
+    "block appearance-none w-full border shadow py-2 px-3 pr-8 rounded"
+
++ brl =
++     Dict.fromList
++         [ ( "EUR", 0.21 )
++         , ( "USD", 0.23 )
++         ]
++
++ usd =
++     Dict.fromList
++         [ ( "EUR", 0.92 )
++         , ( "BRL", 4.42 )
++         ]
++
++ eur =
++     Dict.fromList
++         [ ( "USD", 1.09 )
++         , ( "BRL", 4.81 )
++         ]
++
++ currencies =
++     Dict.fromList
++         [ ( "BRL", brl )
++         , ( "EUR", eur )
++         , ( "USD", usd )
++         ]
+
+init =
+    { from = "BRL"
+    , to = "EUR"
+    , amount = 0
+    , result = 0
+    }
+```
+
+E agora no `update` implementaremos a conversão da seguinte maneira:
+
+```diff
+update msg model =
+    case msg of
+        ChangeOriginCurrency currencyCode ->
+            { model | from = currencyCode }
+
+        ChangeDestinyCurrency currencyCode ->
+            { model | to = currencyCode }
+
+        ChangeAmount amount ->
+            case String.toFloat amount of
+                Just value ->
+                    { model | amount = value }
+
+                Nothing ->
+                    model
++
++       SubmitForm ->
++           case Dict.get model.from currencies of
++               Just availableCurrencies ->
++                   case Dict.get model.to availableCurrencies of
++                       Just toCurrency ->
++                           { model | result = toCurrency * model.amount }
++
++                       Nothing ->
++                           model
++
++               Nothing ->
++                   model
+```
+
+**Pronto!** Copia esse código, clica para compilar, adiciona um valor para converter e clica para converter:
+
+![](/images/elm-na-pratica-3/image-7.gif)
+
+Mas nem tudo são flores, o código está um pouco confuso né?
+
+```elm
+        SubmitForm ->
+            -- Aqui vamos pegar os valores de conversão da moeda de origem
+            -- Por exemplo, se `model.from` for "BRL":
+            -- Dict.get "BRL" currencies
+            case Dict.get model.from currencies of
+                    -- Caso essa moeda exista no `currencies` teremos acesso a ela
+                    -- no `Just`
+                Just availableCurrencies ->
+                    -- Utilizando o resultado `availableCurrencies` vamos tentar pegar o valor
+                    -- da moeda destino.
+                    -- Por exemplo, se `model.to` for "EUR":
+                    -- Dict.get "EUR" availableCurrencies
+                    case Dict.get model.to availableCurrencies of
+                         -- Se conseguir-mos pegar o valor, calcular o resultado
+                         -- multiplicando o valor da moeda (destinyCurrencyValue) pela
+                         -- quantia a ser convertida (model.amount)
+                        Just destinyCurrencyValue ->
+                            { model | result = destinyCurrencyValue * model.amount }
+                        -- Caso a moeda não seja encontrada, iremos definir o `result` como 0
+                        Nothing ->
+                            { model | result = 0 }
+                -- Caso a moeda não seja encontrada, iremos definir o `result` como 0
+                Nothing ->
+                    { model | result = 0 }
+```
+
+Temos três `case .. of` aninhados e isso dificulta um pouco a legibilidade e a manutenção do código, então vamos melhorar isso um pouco. Fique a vontade para pegar o código atualizado: https://ellie-app.com/88NKHgZrtQWa1.
+
+### Utilizando o `let ... in`
+
+O `let ... in` permite que a gente defina valores dentro de uma expressão, assim poderemos guardar valores para utilizar depois. Por exemplo:
+
+```elm
+soma a b =
+    let
+        resultado = a + b
+    in
+        "O resultado é: " ++ (String.fromInt resultado)
+```
+
+Agora vamos refatorar a nossa função:
+
+```diff
+SubmitForm ->
+-   case Dict.get model.from currencies of
+-       Just availableCurrencies ->
+-           case Dict.get model.to availableCurrencies of
+-               Just destinyCurrencyValue ->
+-                   { model | result = destinyCurrencyValue * model.amount }
+-               Nothing ->
+-                   model
+-       Nothing ->
+-           model
++ let
++     availableCurrencies =
++         Maybe.withDefault Dict.empty (Dict.get model.from currencies)
++
++     destinyCurrencyValue =
++         Maybe.withDefault 0 (Dict.get model.to availableCurrencies)
++
++     result =
++         destinyCurrencyValue * model.amount
++ in
++     { model | result = result }
+```
+
+**BEM** melhor não é mesmo? Para isso, além do `let ... in` utilizei a função `Maybe.withDefault` para facilitar as coisas por aqui. O `Maybe.withDefault` nos permite definir um valor padrão caso o segundo parâmetro seja `Nothing`.
+
+Aqui dizemos que o valor padrão para o resultado de `Dict.get model.from currencies` é um Dict vazio (`Dict.empty`):
+
+```elm
+availableCurrencies =
+    Maybe.withDefault Dict.empty (Dict.get model.from currencies)
+```
+
+Em seguida definimos que o valor padrão para o resultado de `Dict.get model.to availabileCurrencies` é `0` (zero):
+
+```elm
+destinyCurrencyValue =
+    Maybe.withDefault 0 (Dict.get model.to availableCurrencies)
+```
+
+E por fim calculamos o resultado e atualizamos a model:
+
+```elm
+    result =
+        destinyCurrencyValue * model.amount
+in
+    { model | result = result }
+```
+
+Ainda dá para melhorar esse código mais um pouquinho mas vou deixar isso para os próximos tutoriais.
+
+## Conclusão
+
+Finalmente implementamos todas as funcionalidades do conversor, agora ele de fato converte as moedas 🎉. Mas ainda temos vários pontos para melhorar e que poderemos explorar novas APIs e conceitos do Elm.
+
+Esse tutorial foi bastante denso e cheio de coisas novas, então não fique chateado caso não tenha entendido tudo, alguns desses conceitos podem demorar dias para serem de fato aprendidos. Sugiro que você tente fazer uma outra aplicação utilizando tudo o que aprendeu até agora, dessa forma você irá escalar a curva de aprendizado do Elm bem mais rápido.
+
+No próximo tutorial iremos aprender a ler assinatura de tipos e tipar nossa aplicação, assim o compilador irá nos ajudar mais. Eu particularmente estou bastante animado com o que está por vir.
+
+Como sempre, o código atualizado está disponível neste link: https://ellie-app.com/88NYGqX6QzVa1 e basta [clicar aqui](/20200311-elm-na-pratica-4) para iniciar o próximo tutorial.
+
+Até a próxima!

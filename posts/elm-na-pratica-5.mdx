@@ -1,0 +1,985 @@
+---
+title: Como chamar uma API usando Elm
+date: "2020-05-30T00:00:00Z"
+description: Aprenda o que são Commands e Decoders para fazer requests HTTP.
+keywords: tutorial de elm, tutorial de elmlang, elm, elmlang, como aprender elm, elm na pratica, aprender elm, como aprender elm, elm para iniciantes, elm/http, elm/json, elm decoder
+category: Elm
+serie: Elm na prática
+episode: 5
+---
+
+Apesar de nosso conversor estar funcionando, ainda não estamos utilizando dados reais para os valores das moedas. Então no tutorial de hoje vamos sair do básico e iremos aprender a fazer chamadas HTTP para buscar dados em um servidor. Para isso precisaremos sair do `Browser.sandbox` (pois ele não nos possibilita fazer isso) e utilizar o `Browser.element`, mas antes precisamos entender o que são `Commands`.
+
+## Commands
+
+Elm é uma linguagem pura, isso significa que você nunca conseguirá produzir side effects dentro do runtime do Elm. Mas o que fazemos quando precisamos fazer uma requisição HTTP? Ou gerar um número aleatório? Ou descobrir qual é a data atual? Nenhuma dessas operações sāo puras, entāo como faremos isso dentro do Elm? É nesses casos que precisamos utilizar **Commands**.
+
+Commands são uma forma de dizer ao Elm "Ei, eu quero que você faça uma coisa pra mim!", então se você quer fazer uma requisição HTTP, você precisará dar o comando para o Elm fazer isso. Todo **Cmd** (é assim que chamamos os comandos dentro do nosso código) especifica qual side effect precisará ser executado e qual será o tipo da mensagem que receberemos depois que o comando for finalizado.
+
+Exemplo:
+
+```elm
+type alias Model =
+        { currentDate: Time.Posix }
+
+type Msg
+        = Click
+        | ReceivedCurrentTime Time.Posix
+    
+    
+getCurrentTime : Cmd Msg
+getCurrentTime =
+      -- Aqui dizemos ao Elm "Ei Elm, pega pra mim a hora atual e quando voltar me avisa com a mensagem `ReceivedCurrentTime`."
+        Task.perform ReceivedCurrentTime Time.now
+
+
+update : Msg -> Model -> (Model, Cmd Msg)
+update msg model =
+    case msg of
+            Click ->
+                    -- Aqui, no segundo item da tupla, dizemos ao Elm quais Cmds deverão ser executados
+                (model, getCurrentTime)
+    
+            -- Aqui utilizamos o valor recebido depois que o Cmd da data atual nos retornou.
+            ReceivedCurrentTime currentTime ->
+                ({ model | currentTime = currentTime }, Cmd.none)
+```
+
+Vale salientar que os Cmds são assíncronos, ou seja, sua aplicação não será pausada enquanto aguarda o resultado de um Cmd.
+
+## Substituindo o Browser.sandbox por Browser.element
+
+Diferente do `sandbox`, uma aplicação do tipo `element` permite que nos comuniquemos com o mundo exterior de 4 maneiras diferentes:
+
+1. **Cmd**: podemos enviar comandos para o Elm runtime executar açōes que interagem com o mundo fora do Elm (como HTTTP)
+2. **Sub**: podemos ouvir e reagir a eventos externos
+3. **flags**: permite que o JavaScript passe dados ao iniciar uma aplicação Elm
+4. **ports**: Permite que o Elm e o JavaScript se comuniquem
+
+Hoje só vamos utilizar **Cmd** mas futuramente publicarei artigos ensinando a utilizar as outras 3 formas.
+
+Essa é a assinatura da função `Browser.element`:
+
+```elm
+element :
+    { init : flags -> ( model, Cmd msg )
+    , view : model -> Html msg
+    , update : msg -> model -> ( model, Cmd msg )
+    , subscriptions : model -> Sub msg
+    }
+    -> Program flags model msg
+```
+
+Repara que a assinatura do `init` e `update` é um pouco diferente, e agora também precisamos passar uma função para `subscriptions`.
+
+Primeiro vamos atualizar a assinatura da função `update`, em vez de retornar `Model` precisamos retornar `(Model, Cmd Msg)`.
+
+```diff
+-update : Msg -> Model -> Model
++update : Msg -> Model -> (Model, Cmd Msg)
+```
+
+Agora vamos corrigir o corpo da função para de fato retornar o novo tipo que precisamos:
+
+```diff
+update msg model =
+    case msg of
+        ChangeOriginCurrency currencyCode ->
+-           { model | from = currencyCode }
++                   ({ model | from = currencyCode }, Cmd.none)
+
+        ChangeDestinyCurrency currencyCode ->
+-           { model | to = currencyCode }
++                       ({ model | to = currencyCode}, Cmd.none)
+
+        ChangeAmount amount ->
+            case String.toFloat amount of
+                Just value ->
+-                   { model | amount = value }
++                   ({ model | amount = value }, Cmd.none)
+
+                Nothing ->
+-                   model
++                   (model, Cmd.none)
+
+        SubmitForm ->
+            let
+                availableCurrencies =
+                    Maybe.withDefault Dict.empty (Dict.get model.from currencies)
+
+                destinyCurrencyValue =
+                    Maybe.withDefault 0 (Dict.get model.to availableCurrencies)
+
+                result =
+                    destinyCurrencyValue * model.amount
+            in
+-           { model | result = result }
++           ({ model | result = result }, Cmd.none)
+```
+
+Também precisaremos fazer algo semelhante com a função `init`, o novo tipo é `init : flags -> ( model, Cmd msg )`.
+
+```diff
+-init : Model
+-init =
+-   { from = "BRL"
+-   , to = "EUR"
+-   , amount = 0
+-   , result = 0
+-   }
+    
++init : () -> (Model, Cmd Msg)
++init _ =
++   ( { from = "BRL"
++    , to = "EUR"
++    , amount = 0
++    , result = 0
++    }
++.  , Cmd.none
++   )
+```
+
+Como não vamos utilizar `flags`, utilizamos `()` para indicar que não esperamos valores, em seguida retornamos a model inicial e um comando inicial, que no caso não temos, então utilizamos `Cmd.none`.
+
+Agora vamos criar a função `subscriptions`, ela é obrigatória quando utilizamos `Browser.element`, mas como não teremos nada para "subscrever", vamos retornar `Sub.none`:
+
+```elm
+subscriptions: Model -> Sub Msg
+subscriptions model =
+        Sub.none
+```
+
+Agora vamos substituir o `Browser.sandbox` por `Browser.element`:
+
+```diff
+main : Program () Model Msg
+main =
+-    Browser.sandbox
++    Browser.element
+        { init = init
+        , view = view
+        , update = update
++       , subscriptions = subscriptions
+        }
+```
+
+Agora conseguiremos compilar nossa aplicação mas nada estará diferente, só fizemos preparar o terreno para implementar as requisições HTTP.
+
+**Código atualizado**: https://ellie-app.com/8Xn6xvsPvkHa1
+
+## Buscando dados no servidor utilizando HTTP
+
+O Elm disponibiliza um [pacote oficial](https://package.elm-lang.org/packages/elm/http/2.0.0/) para fazer requisições HTTP, com ele poderemos criar Cmds buscar dados em servidores. Para isso, criei uma API bem simples para que a gente consiga buscar dados sobre a conversão de moedas, para isso utilizaremos esse endpoint:
+
+```
+https://elm-currency-api.herokuapp.com/v1/latest
+```
+
+Um exemplo de response:
+
+```json
+[
+  {
+    "base": "USD",
+    "date": "2020-05-30T06:13:13.745Z",
+    "rates": {
+      "BRL": 5.33,
+      "EUR": 0.9
+    }
+  },
+  {
+    "base": "BRL",
+    "date": "2020-05-30T06:13:13.751Z",
+    "rates": {
+      "USD": 0.19,
+      "EUR": 0.17
+    }
+  },
+  {
+    "base": "EUR",
+    "date": "2020-05-30T06:13:13.732Z",
+    "rates": {
+      "USD": 1.11,
+      "BRL": 5.92
+    }
+  }
+]
+```
+
+Então tudo que precisamos agora é buscar esses dados no servidor e salvar na model. Então vamos por a mão na massa.
+
+Primeiro vamos instalar o pacote Http, para isso clique no segundo ícone na parte superior esquerda do Ellie, e no campo de busca digite "Http", depois disso click em **Install** (no primeiro item da lista):
+
+![Installing elm Http package](/images/elm-na-pratica-5/image-1.gif)
+
+Agora vamos importar o pacote:
+
+```diff
+module Main exposing (main)
+
+import Browser
+import Dict exposing (Dict)
+import Html exposing (..)
+import Html.Attributes exposing (class, selected, type_, value)
+import Html.Events exposing (onInput, onSubmit)
++ import Http
+```
+
+Então vamos criar uma variável para guardar o endereço do servidor:
+
+```elm
+apiUrl: String
+apiUrl =
+        "https://elm-currency-api.herokuapp.com"
+```
+
+Em seguida vamos criar uma nova `Msg` que será utilizada pelo `Cmd` quando a requisição Http for completada. Essa message será do tipo `GotCurrencyRates String (Result Http.Error String)`, o primeiro valor será o código da moeda e o segundo é um `Result` que poderá conter a resposta do servidor em forma de `String` caso não acontecer nenhum erro, caso contrário, teremos um `Http.Error`:
+
+```diff
+type Msg
+    = ChangeOriginCurrency String
+    | ChangeDestinyCurrency String
+    | ChangeAmount String
+    | SubmitForm
++   | GotCurrencyRates (Result Http.Error String)
+```
+
+E, por ora, o `update` ficará assim:
+
+```diff
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case msg of
+        -- código anterior
+        
++        GotCurrencyRates response ->
++               (model, Cmd.none)
+```
+
+E em seguida vamos criar uma função para buscar esses dados, vou chamá-la de `getCurrencyRates` e ela vai retornar um `Cmd Msg`:
+
+```elm
+getCurrencyRates : Cmd Msg
+getCurrencyRates =
+```
+
+No corpo da função vamos utilizar a função `get` do pacote `Http`, essa função espera uma `url` e também nos pede que a gente informe como o valor recebido da API deve ser representado na nossa aplicação, por ora, vamos representar como uma `String`, então utilizaremos a função `Http.expectString` passando `GotCurrencyRates` como Msg que deverá ser retornada.
+
+```elm
+getCurrencyRates : Cmd Msg
+getCurrencyRates =
+        Http.get
+                { url = apiUrl ++ "/v1/latest"
+                , expect = Http.expectString GotCurrencyRates
+                }
+```
+
+Agora precisamos buscar os dados na API assim que a aplicação inicia, podemos fazer isso na função `init`:
+
+```diff
+init : () -> ( Model, Cmd Msg )
+init _ =
+    ( { from = "BRL"
+      , to = "EUR"
+      , amount = 0
+      , result = 0
+      }
+-   , Cmd.none
++     , getCurrencyRates
+    )
+```
+
+Pronto, já estamos buscando os dados na API, agora vamos olhar a aba Debug (na barra superior direita do Ellie):
+
+![](/images/elm-na-pratica-5/image-2.png)
+
+Podemos ver que o request retornou a mensagem `GotCurrencyRates` com o `Result.Ok` e a resposta da API em forma de `String`. Da forma que está agora não conseguiremos utilizar esses dados, então precisaremos decodificá-los para um formato que seja útil para a nossa aplicação.
+
+## Decodificando JSON
+
+Para utilizar esse JSON dentro da aplicação, precisaremos dizer ao Elm como esse JSON deve ser decodificado e transformado em um Record, para isso, vamos utilizar o pacote [elm/json](https://package.elm-lang.org/packages/elm/json/latest/Json.Decode), ele possui funções que vão nos auxiliar nessa tarefa.
+
+Primeiro vamos criar um alias para representar a response:
+
+```elm
+-- Código novo
+type alias ConversionRate =
+    { usd: Maybe Float
+    , eur: Maybe Float
+    , brl: Maybe Float
+    }
+
+type alias CurrencyRate =
+    { base: String
+    , date: String
+    , rates: ConversionRate
+    }
+--    
+      
+type alias Model =
+    { from : String
+    , to : String
+    , amount : Float
+    , result : Float
+    }
+```
+
+Agora vamos instalar o pacote `elm/json`, da mesma forma que fizemos com o `elm/http`, utilize o menu de packages e busque por `elm/json` e instale o primeiro pacote. Após isso vamos importar ele no nosso código:
+
+```diff
+module Main exposing (main)
+
+import Browser
+import Dict exposing (Dict)
+import Html exposing (..)
+import Html.Attributes exposing (class, selected, type_, value)
+import Html.Events exposing (onInput, onSubmit)
+import Http
++import Json.Decode
+```
+
+Decoders provavelmente são umas das coisas mais odiadas e intimidadoras no Elm, basicamente, o Elm não é capaz de entender o json que recebemos de uma API, então precisamos manualmente decodificar esses dados.
+
+Vamos começar criando o decoder para o type alias `ConversionRate`:
+
+```elm
+conversionRateDecoder : Json.Decode.Decoder ConversionRate
+conversionRateDecoder =
+    Json.Decode.map3 ConversionRate
+        (Json.Decode.maybe (Json.Decode.field "USD" Json.Decode.float))
+        (Json.Decode.maybe (Json.Decode.field "EUR" Json.Decode.float))
+        (Json.Decode.maybe (Json.Decode.field "BRL" Json.Decode.float))
+```
+
+Vamos por partes:
+
+```elm
+Json.Decode.map3 ConversionRate
+```
+
+Com a função `map3` podemos transformar um Record que possui 3 propriedades (como é o caso do `ConversionRate`). O primeiro parâmetro desta função é um construtor, que no caso é o type alias `ConversionRate`, os 3 parâmetros seguintes são as funções que indicam como cada campo deverá ser decodificado. 
+
+```elm
+(Json.Decode.maybe (Json.Decode.field "USD" Json.Decode.float))
+```
+
+Como o campo `USD` no JSON é opcional (em alguns casos não receberemos ele na response), temos que indicar isso no decoder utilizando a função `Json.Decode.maybe`. Em seguida, utilizando a função `Json.Decode.field`  dizemos ao Elm qual é o nome da propriedade do JSON que deverá ser decodificado, nesse caso é `USD` e logo depois dizemos qual é o tipo de dado dessa propriedade.
+
+Fazemos o mesmo para `EUR` e `BRL`. **Uma observação muito importante**: Os campos devem ser decodificados na mesma sequência que foi declarado no type alias.
+
+**Vamos a um exemplo**, digamos que a nós recebemos esse JSON como resposta da API:
+
+```json
+{
+  "USD": 5.33,
+  "EUR": 5.92
+}
+```
+
+E que o type alias e o decoder foram declarados dessa forma:
+
+```elm
+type alias ConversionRate =
+    { usd: Maybe Float
+    , eur: Maybe Float
+    , brl: Maybe Float
+    }
+    
+conversionRateDecoder : Json.Decode.Decoder ConversionRate
+conversionRateDecoder =
+    Json.Decode.map3 ConversionRate
+            (Json.Decode.maybe (Json.Decode.field "BRL" Json.Decode.float))
+        (Json.Decode.maybe (Json.Decode.field "USD" Json.Decode.float))
+        (Json.Decode.maybe (Json.Decode.field "EUR" Json.Decode.float))
+```
+
+O resultado que esperamos é esse:
+
+```elm
+{ usd: Just 5.33
+, eur: Just 5.92
+, brl: Nothing
+}
+```
+
+Mas na real o resultado será esse:
+
+```elm
+{ usd: Nothing
+, eur: Just 5.33
+, brl: Just 5.92
+}
+```
+
+Conseguiu identificar o problema? Esse bug aconteceu pois decodificamos os campos na ordem errada, primeiro deveria ser `USD`, depois `EUR` e por fim `BRL`, mas a sequência está errada, logo, o campo `usd` recebeu o valor de `BRL`, `eur` recebeu o valor de `USD` e `brl` recebeu o valor de `EUR`.
+
+Então sempre que for escrever um decoder, lembre-se de decodificar os valores na mesma sequência em que foi declarado no type alias.
+
+Ainda vamos trabalhar com o decoder do `CurrencyRate`:
+
+```elm
+currencyRateDecoder : Json.Decode.Decoder CurrencyRate
+currencyRateDecoder =
+    Json.Decode.map3 CurrencyRate
+        (Json.Decode.field "base" Json.Decode.string)
+        (Json.Decode.field "date" Json.Decode.string)
+        (Json.Decode.field "rates" conversionRateDecoder)
+```
+
+Em relação ao `conversionRateDecoder`, só temos duas diferenças:
+
+- Nenhum dos campos é do tipo `maybe` pois a API sempre vai retornar um valor para eles
+- Quando decodificamos o campo `rates` utilizamos o `conversionRateDecoder`.
+
+Então o código com os decoders e type aliases ficará assim:
+
+```elm
+type alias ConversionRate =
+    { usd : Maybe Float
+    , eur : Maybe Float
+    , brl : Maybe Float
+    }
+
+
+type alias CurrencyRate =
+    { base : String
+    , date : String
+    , rates : ConversionRate
+    }
+    
+
+conversionRateDecoder : Json.Decode.Decoder ConversionRate
+conversionRateDecoder =
+    Json.Decode.map3 ConversionRate
+        (Json.Decode.maybe (Json.Decode.field "USD" Json.Decode.float))
+        (Json.Decode.maybe (Json.Decode.field "EUR" Json.Decode.float))
+        (Json.Decode.maybe (Json.Decode.field "BRL" Json.Decode.float))
+
+
+currencyRateDecoder : Json.Decode.Decoder CurrencyRate
+currencyRateDecoder =
+    Json.Decode.map3 CurrencyRate
+        (Json.Decode.field "base" Json.Decode.string)
+        (Json.Decode.field "date" Json.Decode.string)
+        (Json.Decode.field "rates" conversionRateDecoder)
+```
+
+Já que agora transformaremos o JSON em `CurrencyData`, precisaremos fazer uma alteração na `Msg` `GotCurrencyRates`:
+
+```diff
+type Msg
+    = ChangeOriginCurrency String
+    | ChangeDestinyCurrency String
+    | ChangeAmount String
+    | SubmitForm
+-   | GotCurrencyRates (Result Http.Error String)
++   | GotCurrencyRates (Result Http.Error (List CurrencyRate))
+```
+
+E por fim, informar ao `Http.get` que a resposta do servidor é um JSON:
+
+```diff
+getCurrencyRates : Cmd Msg
+getCurrencyRates =
+    Http.get
+        { url = apiUrl ++ "/v1/latest"
+-       , expect = Http.expectString GotCurrencyRates
++       , expect = Http.expectJson GotCurrencyRates (Json.Decode.list currencyDataDecoder)
+        }
+```
+
+Utilizamos o `Http.expectJson` para informar ao Elm que esperamos um JSON como resposta e que ele deve decodificar esse JSON utilizando o `Json.Decode.list currencyDataDecoder` e nos passar o resultado através da `Msg` `GotCurrencyRates`.
+
+Clique para compilar e depois vá para a aba **Debug** para ver a Msg com o JSON decodificado:
+
+![](/images/elm-na-pratica-5/image-3.png)
+
+**Código atualizado**: https://ellie-app.com/8Y9rvqfTZJva1
+
+## Utilizando os dados da API
+
+Vamos começar atualizando a `Model` e o `init` para que possamos salvar os dados que recebemos da API:
+
+```diff
+type alias Model =
+    { from : String
+    , to : String
+    , amount : Float
+    , result : Float
++   , currencies : List CurrencyRate
+    }
+    
+init : () -> ( Model, Cmd Msg )
+init _ =
+    ( { from = "BRL"
+      , to = "EUR"
+      , amount = 0
+      , result = 0
++     , currencies = []
+      }
+    , getCurrencyRates
+    )
+```
+
+
+
+Em seguida, na função `update` vamos salvar os dados na model:
+
+```elm
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case msg of
+        -- código anterior
+
+        GotCurrencyRates response ->
+            case response of
+                Ok data ->
+                    ( { model | currencies = data }, Cmd.none )
+
+                Err _ ->
+                    ( model, Cmd.none )
+```
+
+Como o `GotCurrencyRates` nos trás um `Result`, precisamos acessar o valor da `response` checando os dois possíveis valores, `Ok` e `Err`. O `Result` é parecido com o `Maybe` mas a diferença é que, diferente do `Nothing` o `Err` trás uma mensagem de erro.
+
+Por enquanto não vamos fazer nada quando recebermos um erro. Se olharmos o **Debug**, veremos que a `model` estä atualizada com os dados da API:
+
+![](/images/elm-na-pratica-5/image-8.png)
+
+Agora vamos atualizar o cálculo do resultado da conversão. Logo após ao `update` iremos criar uma função que será responsável por pegar o valor de uma moeda de acordo com o código da moeda:
+
+```elm
+getCurrencyValue : String -> CurrencyRate -> Float
+getCurrencyValue currencyCode currencyRate =
+    let
+        maybeValue =
+            case currencyCode of
+                "USD" ->
+                    currencyRate.rates.usd
+
+                "EUR" ->
+                    currencyRate.rates.eur
+
+                "BRL" ->
+                    currencyRate.rates.brl
+
+                _ ->
+                    Just 0
+    in
+    Maybe.withDefault 0 maybeValue
+```
+
+E o `SubmitForm` ficará assim:
+
+```elm
+        SubmitForm ->
+            let
+                availableCurrencies =
+                    Maybe.withDefault Dict.empty (Dict.get model.from currencies)
+
+                destinyCurrencyValue =
+                    if model.from == model.to then
+                        1
+
+                    else
+                        List.filter (\currency -> currency.base == model.from) model.currencies
+                            |> List.head
+                            |> Maybe.map (getCurrencyValue model.to)
+                            |> Maybe.withDefault 0
+
+                result =
+                    destinyCurrencyValue * model.amount
+            in
+            ( { model | result = result }, Cmd.none )
+```
+
+Só mudamos o cálculo do `detinyCurrencyValue`:
+
+```elm
+                                destinyCurrencyValue =
+                                        -- retornamos 1 se as moedas forem iguais
+                    if model.from == model.to then
+                        1
+
+                    else
+                        List.filter (\currency -> currency.base == model.from) model.currencies -- filtramos todas as moedas e mantemos apenas a moeda de origem que o usuário escolheu
+                            |> List.head -- Pegamos o primeiro item da lista
+                            |> Maybe.map (getCurrencyValue model.to) -- Pegamos o valor da moeda de destino
+                            |> Maybe.withDefault 0 -- Usamos 0 como valor padrão caso o resultado dos passos anteriores seja `Nothing`
+```
+
+Agora o conversor deve funcionar utilizando os dados da API:
+
+![](/images/elm-na-pratica-5/image-4.gif)
+
+**Código atualizado**: https://ellie-app.com/8ZtkKxbm36ka1
+
+## Tratando os estados de uma requisição Http
+
+Toda requisição Http pode passar por 3 estados diferentes: Carregando, Sucesso ou Erro. Vamos adaptar nossa model para que possamos saber em qual estado nossa request está. Vou começar criando um novo type (logo antes do `type alias Model`):
+
+```elm
+type HttpData error data
+        = Loading
+        | Success data
+        | Error error
+```
+
+Em seguida vamos atualizar a model:
+
+```diff
+type alias Model =
+    { from : String
+    , to : String
+    , amount : Float
+    , result : Float
+-   , currencies : List CurrencyRate
++   , currencies : HttpData String (List CurrencyRate)
+    }
+```
+
+O `HttpData String (List CurrencyRate)` indica que, caso tenhamos erro, ele será uma `String` e em caso de sucesso, os dados serão do tipo `List CurrencyRate`.
+
+Agora vamos atualizar o `init`:
+
+```diff
+init : () -> ( Model, Cmd Msg )
+init _ =
+    ( { from = "BRL"
+      , to = "EUR"
+      , amount = 0
+      , result = 0
+-     , currencies = []
++     , currencies = Loading
+      }
+    , getCurrencyRates
+    )
+```
+
+Em seguida, mais algumas mudanças no `GotCurrencyRates`:
+
+```diff
+        GotCurrencyRates response ->
+            case response of
+                Ok data ->
+-                   ( { model | currencies = data }, Cmd.none )
++                   ( { model | currencies = Success data }, Cmd.none )
+
+                Err _ ->
+-                   ( model, Cmd.none )
++                   ( { model | currencies = Error "Erro ao carregar as moedas." }, Cmd.none )
+```
+
+E, pra finalizar, vamos atualizar o `SubmitForm`:
+
+```diff
+SubmitForm ->
+            let
+                availableCurrencies =
+                    Maybe.withDefault Dict.empty (Dict.get model.from currencies)
+
+                destinyCurrencyValue =
+                    if model.from == model.to then
+                        1
+
+                    else
++                           case model.currencies of
++                               Success currencyData ->
+-                               List.filter (\currency -> currency.base == model.from) model.currencies
++                               List.filter (\currency -> currency.base == model.from) currencyData
+                                    |> List.head
+                                    |> Maybe.map (getCurrencyValue model.to)
+                                    |> Maybe.withDefault 0
++                           _ ->
++                               0
+
+                result =
+                    destinyCurrencyValue * model.amount
+            in
+            ( { model | result = result }, Cmd.none )
+```
+
+Agora vamos atualizar a `view` de forma que siga esses critérios:
+
+- Quando `currencies` for `Success`: mostra o formulário do conversor
+- Quando `currencies` for `Loading`: mostra a mensagem "Carregando..."
+- Quando `currencies` for `Error`: mostra a mensagem de erro
+
+A `view` ficará assim:
+
+```elm
+view : Model -> Html Msg
+view model =
+    div [ class "flex justify-center py-10" ]
+        [ div [ class "w-full max-w-xs" ]
+            [ h1 [ class "text-center text-2xl mb-6" ] [ text "Conversor de Moedas" ]
+            , form [ onSubmit SubmitForm, class "bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4" ]
+                (case model.currencies of
+                    Success currencies ->
+                        [ div [ class "mb-4" ]
+                            [ label [ class "block text-gray-700 text-sm font-bold mb-2" ] [ text "Moeda de origem" ]
+                            , div [ class "relative" ]
+                                [ select
+                                    [ class selectClasses, value model.from, onInput ChangeOriginCurrency ]
+                                    [ option [ value "BRL", selected (model.from == "BRL") ] [ text "Real" ]
+                                    , option [ value "USD", selected (model.from == "USD") ] [ text "Dólar americano" ]
+                                    , option [ value "EUR", selected (model.from == "EUR") ] [ text "Euro" ]
+                                    ]
+                                ]
+                            ]
+                        , div [ class "mb-4" ]
+                            [ label [ class "block text-gray-700 text-sm font-bold mb-2" ]
+                                [ text "Moeda de destino"
+                                ]
+                            , div [ class "relative" ]
+                                [ select
+                                    [ class selectClasses, value model.to, onInput ChangeDestinyCurrency ]
+                                    [ option [ value "USD", selected (model.to == "USD") ] [ text "Dólar americano" ]
+                                    , option [ value "BRL", selected (model.to == "BRL") ] [ text "Real" ]
+                                    , option [ value "EUR", selected (model.to == "EUR") ] [ text "Euro" ]
+                                    ]
+                                ]
+                            ]
+                        , div [ class "mb-6" ]
+                            [ label [ class "block text-gray-700 text-sm font-bold mb-2" ]
+                                [ text "Quantidade"
+                                ]
+                            , input [ type_ "number", onInput ChangeAmount, value (String.fromFloat model.amount), class "shadow appearence-none border rounded w-full py-2 px-3 text-gray" ] []
+                            ]
+                        , div [ class "flex w-full" ]
+                            [ button [ class "bg-blue-500 w-full hover:bg-blue-700 text-white font-bold py-2 px-4" ] [ text "Converter" ] ]
+                        , div [ class "flex w-full text-center mt-5 text-gray-700 text-sm" ]
+                            [ text ("Convertendo " ++ String.fromFloat model.amount ++ " " ++ model.from ++ " para " ++ model.to ++ " totalizando " ++ String.fromFloat model.result ++ " " ++ model.to) ]
+                        ]
+
+                    Loading ->
+                        [ div [ class "text-center" ] [ text "Carregando..." ] ]
+
+                    Error error ->
+                        [ div [ class "text-center text-red-700" ] [ text error ] ]
+                )
+            ]
+        ]
+```
+
+Em caso de sucesso:
+
+![](/images/elm-na-pratica-5/image-5.gif)
+
+Em caso de erro:
+
+![](/images/elm-na-pratica-5/image-6.gif)
+
+**Código atualizado**: https://ellie-app.com/8ZtT3FKmnGRa1
+
+## Um pouco de refatoração
+
+Existem algumas linhas de código que ficaram obsoletas, vamos removê-las:
+
+```diff
+selectClasses : String
+selectClasses =
+    "block appearance-none w-full border shadow py-2 px-3 pr-8 rounded"
+
+
+- type alias CurrencyConversions =
+-   Dict String Float
+-
+-
+- brl : CurrencyConversions
+- brl =
+-     Dict.fromList
+-         [ ( "EUR", 0.21 )
+-         , ( "USD", 0.23 )
+-         ]
+- 
+- 
+- usd : CurrencyConversions
+- usd =
+-     Dict.fromList
+-         [ ( "EUR", 0.92 )
+-         , ( "BRL", 4.42 )
+-         ]
+- 
+- 
+- eur : CurrencyConversions
+- eur =
+-     Dict.fromList
+-         [ ( "USD", 1.09 )
+-         , ( "BRL", 4.81 )
+-         ]
+- 
+- 
+- currencies : Dict String CurrencyConversions
+- currencies =
+-     Dict.fromList
+-         [ ( "BRL", brl )
+-         , ( "EUR", eur )
+-         , ( "USD", usd )
+-         ]
+
+```
+
+E também removeremos esse trecho:
+
+```diff
+        SubmitForm ->
+            let
+-               availableCurrencies =
+-                   Maybe.withDefault Dict.empty (Dict.get model.from currencies)
+-
+                destinyCurrencyValue =
+                    if model.from == model.to then
+                        1
+
+                    else
+                        case model.currencies of
+                            Success currencyData ->
+                                List.filter (\currency -> currency.base == model.from) currencyData
+                                    |> List.head
+                                    |> Maybe.map (getCurrencyValue model.to)
+                                    |> Maybe.withDefault 0
+
+                            _ ->
+                                0
+
+                result =
+                    destinyCurrencyValue * model.amount
+            in
+            ( { model | result = result }, Cmd.none )
+```
+
+### Melhorando a UX
+
+Uma coisa que não está muito bom no nosso conversor é a necessidade de precisar clicar no botão "Converter" para de fato converter as moedas. O `SubmitForm`  foi útil para aprendermos a como submeter um formulário mas agora vamos removê-lo e fazer a conversão assim que o usuário interagir com o formulário.
+
+Vamos começar criando a função `convertCurrency` (cria ela depois da função `update`):
+
+```elm
+convertCurrency : Float -> String -> String -> List CurrencyRate -> Float
+convertCurrency amount from to currencies =
+    let
+        destinyCurrencyValue =
+            if from == to then
+                1
+
+            else
+                List.filter (\currency -> currency.base == from) currencies
+                    |> List.head
+                    |> Maybe.map (getCurrencyValue to)
+                    |> Maybe.withDefault 0
+    in
+    destinyCurrencyValue * amount
+```
+
+Basicamente copiamos o código do `SubmitForm` e colocamos em uma função.
+
+Agora vamos remover o `SubmitForm`, primeiro na `Msg`:
+
+```diff
+type Msg
+    = ChangeOriginCurrency String
+    | ChangeDestinyCurrency String
+    | ChangeAmount String
+-   | SubmitForm
+    | GotCurrencyRates (Result Http.Error (List CurrencyRate))
+```
+
+
+
+Depois na `view`:
+
+```diff
+- form [ onSubmit SubmitForm, class "bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4" ]
++ form [ class "bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4" ]
+```
+
+E por fim no `update`:
+
+```diff
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case msg of
+        -- codigo existente
+
+-        SubmitForm ->
+-            let
+-                destinyCurrencyValue =
+-                    if model.from == model.to then
+-                        1
+-
+-                    else
+-                        case model.currencies of
+-                            Success currencyData ->
+-                                List.filter (\currency -> currency.base == model.from) currencyData
+-                                    |> List.head
+-                                    |> Maybe.map (getCurrencyValue model.to)
+-                                    |> Maybe.withDefault 0
+-
+-                            _ ->
+-                                0
+-
+-                result =
+-                    destinyCurrencyValue * model.amount
+-            in
+-            ( { model | result = result }, Cmd.none )
+
+        -- codigo existente
+```
+
+Agora vamos utilizar a função `convertCurrency` na `view` e criaremos a variável `result`:
+
+```diff
+(case model.currencies of
+    Success currencies ->
++       let
++           result = convertCurrency model.amount model.from model.to currencies
++       in
+```
+
+Em seguida vamos utilizar o `result` onde utilizávamos o `model.result`:
+
+```diff
+- [ text ("Convertendo " ++ String.fromFloat model.amount ++ " " ++ model.from ++ " para " ++ model.to ++ " totalizando " ++ String.fromFloat model.result ++ " " ++ model.to) ]
++ [ text ("Convertendo " ++ String.fromFloat model.amount ++ " " ++ model.from ++ " para " ++ model.to ++ " totalizando " ++ (String.fromFloat result) ++ " " ++ model.to) ]
+```
+
+Então vamos remover o `result` da `model`:
+
+```diff
+type alias Model =
+    { from : String
+    , to : String
+    , amount : Float
+-   , result : Float
+    , currencies : HttpData String (List CurrencyRate)
+    }
+```
+
+Também removeremos o `result` no `init`, e aproveitarei para mudar o `amount` inicial para `1`:
+
+```diff
+init : () -> ( Model, Cmd Msg )
+init _ =
+    ( { from = "BRL"
+      , to = "EUR"
+-     , amount = 0
++     , amount = 1
+-     , result = 0
+      , currencies = Loading
+      }
+    , getCurrencyRates
+    )
+```
+
+Agora o conversor está bem melhor:
+
+![](/images/elm-na-pratica-5/image-7.gif)
+
+**Código atualizado**: https://ellie-app.com/8ZvdxnD2rFqa1
+
+## Conclusão
+
+Bom, o tutorial de hoje foi muuuuuuuito extenso, mas conseguimos cobrir boa parte do conteúdo relacionado a Decoder e Http. Espero que tenha gostado, pode deixar suas dúvidas nos comentários ou me perguntar no Twitter (@fidelisclayton).
+
+Até o próximo tutorial!

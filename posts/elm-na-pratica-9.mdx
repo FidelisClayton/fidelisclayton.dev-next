@@ -1,0 +1,462 @@
+---
+title: Criando a página de histórico
+date: "2020-06-30T00:00:00Z"
+description: Vamos criar a página de histórico do conversor e trabalharemos com formatação de datas.
+keywords: tutorial de elm, como criar uma spa com elm, como formatar datas com Elm, como utilizar Posix no Elm
+category: Elm
+serie: Elm na prática
+episode: 9
+---
+
+Já temos as rotas no lugar, agora precisaremos criar a página de histórico. Para isso vamos utilizar outra API. O endpoint é esse:
+
+```
+https://elm-currency-api.herokuapp.com/v1/history?from=brl&to=eur
+```
+
+Exempo de *response*:
+
+```json
+[
+  {
+    "date": "2020-06-05T00:00:00.000Z",
+    "rate": 0.17852
+  },
+  {
+    "date": "2020-06-04T00:00:00.000Z",
+    "rate": 0.17232
+  },
+  {
+    "date": "2020-06-03T00:00:00.000Z",
+    "rate": 0.17585
+  }
+]
+```
+
+Vamos começar criando um type alias para essa resposta:
+
+```elm
+type alias HistoryItem =
+    { date : String
+    , rate : Float
+    }
+```
+
+Em seguida, vamos criar o decoder para esse *alias*:
+
+```elm
+historyItemDecoder : Json.Decode.Decoder HistoryItem
+historyItemDecoder =
+    Json.Decode.map2 HistoryItem
+        (Json.Decode.field "date" Json.Decode.string)
+        (Json.Decode.field "rate" Json.Decode.float)
+```
+
+E agora a função pra buscar esses dados na API:
+
+```elm
+getHistory : String -> String -> Cmd Msg
+getHistory from to =
+    Http.get
+        { url = apiUrl ++ "/v1/history?from=" ++ from ++ "&to=" ++ to
+        , expect = Http.expectJson GotHistory (Json.Decode.list historyItemDecoder)
+        }
+```
+
+Depois disso vamos adicionar um novo valor no tipo `Msg`:
+
+```diff
+type Msg
+    = ChangeOriginCurrency String
+    | ChangeDestinyCurrency String
+    | ChangeAmount String
+    | GotCurrencyRates (Result Http.Error (List CurrencyRate))
+    | LinkClicked Browser.UrlRequest
+    | UrlChanged Url.Url
++   | GotHistory (Result Http.Error (List HistoryItem))
+```
+
+E também adicionaremos uma nova propriedade na `Model` para salvar o valor do histórico:
+
+```diff
+type alias Model =
+    { from : String
+    , to : String
+    , amount : Float
+    , currencies : HttpData String (List CurrencyRate)
+    , key : Nav.Key
+    , url : Url.Url
++   , history : HttpData String (List HistoryItem)
+    }
+```
+
+E atualizar o `init` de acordo:
+
+```diff
+init : Json.Encode.Value -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
+init flags url key =
+    let
+        currencies =
+            case Json.Decode.decodeValue (Json.Decode.list currencyRateDecoder) flags of
+                Ok decodedCurrencies ->
+                    Success decodedCurrencies
+
+                _ ->
+                    Loading
+    in
+    ( { from = "BRL"
+      , to = "EUR"
+      , amount = 1
+      , currencies = currencies
+      , key = key
+      , url = url
++     , history = Loading
+      }
+    , getCurrencyRates
+    )
+```
+
+E, por fim, na função `update` vamos salvar esse valor:
+
+```diff
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case msg of
+                -- código anterior
+                
+        GotCurrencyRates response ->
+            case response of
+                Ok data ->
+                    ( { model | currencies = Success data }, saveCurrencies data )
+
+                Err _ ->
+                    ( { model | currencies = Error "Erro ao carregar as moedas" }, Cmd.none )
++
++        GotHistory response ->
++            case response of
++                Ok data ->
++                    ( { model | history = Success data }, Cmd.none )
++
++                Err _ ->
++                    ( { model | history = Error "Erro ao carregar o histórico" }, Cmd.none )
+```
+
+Agora precisamos encontrar uma forma de chamar essa API. O correto é chamar ela quando a rota mudar, e, essa nova rota deve ser `History`. Então, para conseguir isso, vamos enviar um `Cmd` no `UrlChanged`:
+
+```diff
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case msg of
+        -- Código anterior
+
+        UrlChanged url ->
++           let
++               cmd =
++                   case Route.fromUrl url of
++                       Route.History from to ->
++                           getHistory from to
++
++                       _ ->
++                           Cmd.none
++           in
+-           ( { model | url = url }, Cmd.none )
++           ( { model | url = url }, cmd )
+
+                -- Código seguinte
+```
+
+Pronto, agora já conseguimos buscar e salvar os dados da API:
+
+![](/images/elm-na-pratica-9/image-1.gif)
+
+## Criando a tela de histórico
+
+A tela de histórico será bem simples, só precisamos mostrar uma tabela com os dados que recebemos da API e um titulo informando qual é o par de moedas que está sendo exibido.
+
+Vamos começar criando duas funções para renderizar a tabela:
+
+```elm
+viewHistoryRow : HistoryItem -> Html Msg
+viewHistoryRow historyItem =
+    tr []
+        [ td [ class "text-left" ] [ text historyItem.date ]
+        , td [ class "text-left" ] [ text <| String.fromFloat historyItem.rate ]
+        ]
+
+
+viewHistoryTable : List HistoryItem -> Html Msg
+viewHistoryTable history =
+    table [ class "table-fixed w-full" ]
+        [ thead []
+            [ tr []
+                [ th [ class "w-3/4 text-left" ] [ text "Data" ]
+                , th [ class "w-1/4 text-left" ] [ text "Valor" ]
+                ]
+            ]
+        , tbody []
+            (List.take 30 history |> List.map viewHistoryRow)
+        ]
+```
+
+Nada de novidade por aqui, mas vou destacar a seguinte linha:
+
+```elm
+List.take 30 history |> List.map viewHistoryRow
+```
+
+Aqui nós usamos o `List.take` para pegar apenas os primeiros 30 itens do histórico, que é uma lista de `HistoryItem`, depois jogamos o resultado para o `List.map` que vai utilizar a função `viewHistoryRow` para renderizar cada item na tabela.
+
+Por fim, o `viewHistory` vai ficar assim:
+
+```elm
+viewHistory : String -> String -> Model -> Browser.Document Msg
+viewHistory from to model =
+    { title = "Histórico"
+    , body =
+        [ div [ class "flex justify-center py-10" ]
+            [ div [ class "w-full max-w-sm" ]
+                [ h1 [ class "text-center text-2xl mb-6" ] [ text <| "Hist√≥rico " ++ from ++ " x " ++ to ]
+                , div [ class "bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4" ]
+                    [ case model.history of
+                        Loading ->
+                            text "Carregando"
+
+                        Success history ->
+                            viewHistoryTable history
+
+                        Error error ->
+                            text error
+                    ]
+                ]
+            ]
+        ]
+    }
+```
+
+Agora já conseguimos ver a tabela com o histórico:
+
+![](/images/elm-na-pratica-9/image-2.png)
+
+## Formatando datas
+
+Até agora não utilizamos um tipo de dados que representa uma data, apenas utilizamos o tipo `String` para representá-las. No Elm, utilizamos o `Posix` para representar datas. Vamos começar alterando o *type alias* `HistoryItem` para que o campo `date` seja do tipo `Posix`.
+
+Primeiro vamos instalar os pacotes `elm/time`, `rtfeldman/elm-iso8601-date-strings` e `ryannhg/date-format`:
+
+```shj
+elm install elm/time
+elm install rtfeldman/elm-iso8601-date-strings
+elm install ryannhg/date-format
+```
+
+Em seguida vamos importar o `Posix` do pacote `elm/time`:
+
+```diff
+port module Main exposing (main)
+
+import Browser
+import Browser.Navigation as Nav
+import Dict exposing (Dict)
+import Html exposing (..)
+import Html.Attributes exposing (class, href, selected, type_, value)
+import Html.Events exposing (onInput)
+import Http
+import Json.Decode
+import Json.Encode
+import Route
++ import Time exposing (Posix)
+import Url
+```
+
+E agora vamos trocar o tipo do `date`:
+
+```diff
+type alias HistoryItem =
+-   { date : String
++   { date : Posix
+    , rate : Float
+    }
+```
+
+Se você tentar compilar o código receberá o seguinte erro:
+
+```sh
+Error: Compiler process exited with error Compilation failed
+Compiling ...-- TYPE MISMATCH -------------------------------------------------- src/Main.elm
+
+The 2nd argument to `map2` is not what I expect:
+
+65|     Json.Decode.map2 HistoryItem
+66|         -- (Json.Decode.field "date" Iso8601.decoder)
+67|>        (Json.Decode.field "date" Json.Decode.string)
+68|         (Json.Decode.field "rate" Json.Decode.float)
+
+This `field` call produces:
+
+    Json.Decode.Decoder String
+
+But `map2` needs the 2nd argument to be:
+
+    Json.Decode.Decoder Posix
+
+Hint: I always figure out the argument types from left to right. If an argument
+is acceptable, I assume it is “correct” and move on. So the problem may actually
+be in one of the previous arguments!
+```
+
+Ele está nos dizendo que o `decoder` está incorreto pois estamos tentando decodificar o campo `date` como se fosse uma `string` mas agora é um `Posix`, para isso vamos utilizar o segundo pacote que instalamos (`rtfeldman/elm-iso8601-date-strings`), ele nos disponibiliza um decoder de Posix.
+
+Vamos começar importando o pacote:
+
+```diff
+port module Main exposing (main)
+
+import Browser
+import Browser.Navigation as Nav
+import Dict exposing (Dict)
+import Html exposing (..)
+import Html.Attributes exposing (class, href, selected, type_, value)
+import Html.Events exposing (onInput)
+import Http
+import Json.Decode
+import Json.Encode
+import Route
+import Time exposing (Posix)
+import Url
++import Iso8601
+```
+
+Agora vamos atualizar o `historyItemDecoder`:
+
+```diff
+historyItemDecoder : Json.Decode.Decoder HistoryItem
+historyItemDecoder =
+    Json.Decode.map2 HistoryItem
+-       (Json.Decode.field "date" Json.Decode.string)
++       (Json.Decode.field "date" Iso8601.decoder)
+        (Json.Decode.field "rate" Json.Decode.float)
+```
+
+Se tentarmos compilar o código rebeceremos mais um erro:
+
+```sh
+Compiling ...-- TYPE MISMATCH -------------------------------------------------- src/Main.elm
+
+The 1st argument to `text` is not what I expect:
+
+276|         [ td [ class "text-left" ] [ text historyItem.date ]
+                                               ^^^^^^^^^^^^^^^^
+The value at .date is a:
+
+    Posix
+
+But `text` needs the 1st argument to be:
+
+    String
+```
+
+Agora só precisamos converter o `Posix` para `String`, para isso, vamos utilizar o terceiro pacote (`ryannhg/date-format`) para formatar a data.
+
+Como de costume, vamos importar o módulo:
+
+```diff
+port module Main exposing (main)
+
+import Browser
+import Browser.Navigation as Nav
+import Dict exposing (Dict)
+import Html exposing (..)
+import Html.Attributes exposing (class, href, selected, type_, value)
+import Html.Events exposing (onInput)
+import Http
+import Json.Decode
+import Json.Encode
+import Route
+import Time exposing (Posix)
+import Url
+import Iso8601
++import DateFormat
+```
+
+Então vamos criar uma função que recebe um `Posix` e retorna uma `String` no format `DD/MM/AAAA`:
+
+```elm
+formatPosix : Posix -> String
+formatPosix =
+        DateFormat.format
+                [ DateFormat.dayOfMonthFixed
+                , DateFormat.text "/"
+                , DateFormat.monthFixed
+                , DateFormat.text "/"
+                , DateFormat.yearNumber
+                ]
+                Time.utc
+```
+
+E pra finalizar vamos usar essa função na `viewHistoryRow`:
+
+```diff
+viewHistoryRow : HistoryItem -> Html Msg
+viewHistoryRow historyItem =
+    tr []
+-       [ td [ class "text-left" ] [ text historyItem.date ]
++       [ td [ class "text-left" ] [ text <| formatPosix historyItem.date ]
+        , td [ class "text-left" ] [ text <| String.fromFloat historyItem.rate ]
+        ]
+```
+
+Pronto, agora a data já está formatada:
+
+![](/images/elm-na-pratica-9/image-3.png)
+
+## Corrigindo bugs
+
+Você provavelmente ja deve ter percebido, se a gente recarregar a página do histórico os dados não serão carregados, isso acontece pois não estamos chamando a API de histórico no `init` quando a aplicação está na rota de histórico. Vamos corrigir isso rapidamente:
+
+```diff
+init : Json.Encode.Value -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
+init flags url key =
+    let
+        currencies =
+            case Json.Decode.decodeValue (Json.Decode.list currencyRateDecoder) flags of
+                Ok decodedCurrencies ->
+                    Success decodedCurrencies
+
+                _ ->
+                    Loading
++
++       cmd =
++           case Route.fromUrl url of
++               Route.History from to ->
++                   getHistory from to
++
++               Route.Home ->
++                   getCurrencyRates
++
++               _ ->
++                   Cmd.none
+    in
+    ( { from = "BRL"
+      , to = "EUR"
+      , amount = 1
+      , currencies = currencies
+      , key = key
+      , url = url
+      , history = Loading
+      }
+-   , getCurrencyRates
++   , cmd
+    )
+```
+
+Pronto! Agora tudo deve estar funcionando perfeitamente.
+
+**Código atualizado**: https://github.com/FidelisClayton/elm-currency-app/tree/parte-9
+
+## Conclusão
+
+Não tivemos muitas novidades neste tutorial mas utilizamos quase tudo que aprendemos nas aulas anteriores e também aprendemos a utilizar o `Posix` e como formatar datas.
+
+O próximo tutorial estará repleto de refatorações, vamos dividir o `Main.elm` e utilizar uma estrutura de pastas que vai tornar mais fácil extender a aplicação.
+
+Até a próxima!

@@ -1,0 +1,1434 @@
+---
+title: Estrutura de pastas
+date: "2020-07-06T00:00:00Z"
+description: Finalizando nosso projeto com uma nova estrutura de pastas mais escalável e separando o Main em vários arquivos.
+keywords: tutorial de elm, como criar uma spa com elm, estrutura de pastas no Elm, como organizar pastas no Elm, arquitetura no Elm
+category: Elm
+serie: Elm na prática
+episode: 10
+---
+
+Chegamos ao ponto onde o nosso arquivo principal já está ficando confuso, com a lógica de duas páginas diferentes e isso não escala muito bem caso a gente precise adicionar mais páginas.
+
+Para o projeto ficar mais escalável, precisaremos reestruturar nossa aplicação, a forma que vamos trabalhar é baseada no projeto [elm-spa-example](https://github.com/rtfeldman/elm-spa-example) do [Richard Feldman](https://twitter.com/rtfeldman), autor do livro [Elm in Action](https://www.manning.com/books/elm-in-action) mas não será 100% igual.
+
+## Separando as chamadas de API 
+
+Vamos começar movendo as funções e tipos relacionados às chamadas de API para uma pasta que chamaremos de `Api`. Então vamos começar criando essa nova pasta e dois arquivos nela, um para o histórico e outro para a conversão:
+
+```sh
+mkdir src/Api # cria a pasta Api
+touch src/Api/History.elm # Cria o arquivo History.elm
+touch src/Api/CurrencyRate.elm # Cria o arquivo Conversion.elm
+```
+
+Primeiro vamos mover os valores relacionados ao endpoint de conversão, o arquivo `src/Api/CurrencyRate.elm` ficará assim:
+
+```elm
+module Api.CurrencyRate exposing (ConversionRate, CurrencyRate, currencyRateDecoder, getCurrencyRates)
+
+import Http
+import Json.Decode
+
+
+apiUrl : String
+apiUrl =
+    "https://elm-currency-api.herokuapp.com"
+
+
+
+-- TYPES
+
+
+type alias ConversionRate =
+    { usd : Maybe Float
+    , eur : Maybe Float
+    , brl : Maybe Float
+    }
+
+
+type alias CurrencyRate =
+    { base : String
+    , date : String
+    , rates : ConversionRate
+    }
+
+
+
+-- DECODERS
+
+
+conversionRateDecoder : Json.Decode.Decoder ConversionRate
+conversionRateDecoder =
+    Json.Decode.map3 ConversionRate
+        (Json.Decode.maybe (Json.Decode.field "USD" Json.Decode.float))
+        (Json.Decode.maybe (Json.Decode.field "EUR" Json.Decode.float))
+        (Json.Decode.maybe (Json.Decode.field "BRL" Json.Decode.float))
+
+
+currencyRateDecoder : Json.Decode.Decoder CurrencyRate
+currencyRateDecoder =
+    Json.Decode.map3 CurrencyRate
+        (Json.Decode.field "base" Json.Decode.string)
+        (Json.Decode.field "date" Json.Decode.string)
+        (Json.Decode.field "rates" conversionRateDecoder)
+
+
+
+-- REQUESTS
+
+
+getCurrencyRates : Cmd Msg
+getCurrencyRates =
+    Http.get
+        { url = apiUrl ++ "/v1/latest"
+        , expect = Http.expectJson GotCurrencyRates (Json.Decode.list currencyRateDecoder)
+        }
+```
+
+Mas vamos fazer uma pequena alteração na função `getCurrencyRates` para que ela receba um construtor que retorna uma `msg` (genérica) de forma que a tornará mais reutilizável:
+
+```elm
+getCurrencyRates : (Result Http.Error (List CurrencyRate) -> msg) -> Cmd msg
+getCurrencyRates msg =
+    Http.get
+        { url = apiUrl ++ "/v1/latest"
+        , expect = Http.expectJson msg (Json.Decode.list currencyRateDecoder)
+        }
+```
+
+Agora vamos fazer o mesmo com a API de histórico, depois de mover as funções, o arquivo `src/Api/History.elm` ficará assim:
+
+```elm
+module Api.History exposing (HistoryItem, getHistory)
+
+import Http
+import Iso8601
+import Json.Decode
+import Time exposing (Posix)
+
+
+apiUrl : String
+apiUrl =
+    "https://elm-currency-api.herokuapp.com"
+
+
+
+-- TYPES
+
+
+type alias HistoryItem =
+    { date : Posix
+    , rate : Float
+    }
+
+
+
+-- DECODERS
+
+
+historyItemDecoder : Json.Decode.Decoder HistoryItem
+historyItemDecoder =
+    Json.Decode.map2 HistoryItem
+        (Json.Decode.field "date" Iso8601.decoder)
+        (Json.Decode.field "rate" Json.Decode.float)
+
+
+
+-- REQUESTS
+
+
+getHistory : (Result Http.Error (List HistoryItem) -> msg) -> String -> String -> Cmd msg
+getHistory msg from to =
+    Http.get
+        { url = apiUrl ++ "/v1/history?from=" ++ from ++ "&to=" ++ to
+        , expect = Http.expectJson msg (Json.Decode.list historyItemDecoder)
+        }
+```
+
+Agora vamos utilizar esses novos módulos no arquivo `Main.elm`. Primeiro importaremos os módulos:
+
+```elm
+import Api.CurrencyRate exposing (..)
+import Api.History exposing (..)
+```
+
+E agora só precisamos atualizar as chamadas do `getHistory` e `getCurrencyRate` passando as `msgs`, primeiro no `init`:
+
+```diff
+        cmd =
+            case Route.fromUrl url of
+                Route.History from to ->
+-                   getHistory from to
++                   getHistory GotHistory from to
+
+                Route.Home ->
+-                   getCurrencyRates
++                   getCurrencyRates GotCurrencyRates
+
+                _ ->
+                    Cmd.none
+
+```
+
+E no `update UrlChanged`:
+
+```diff
+            let
+                cmd =
+                    case Route.fromUrl url of
+                        Route.History from to ->
+-                           getHistory from to
++                           getHistory GotHistory from to
+
+                        _ ->
+                            Cmd.none
+            in
+            ( { model | url = url }, cmd )
+```
+
+Ainda temos um pequeno problema, estamos duplicando o valor `apiUrl` nos dois arquivos, vamos resolver isso criando um novo arquivo chamado `Api.elm`. Ele vai conter tudo que for comum entre os módulos de `Api`:
+
+```sh
+touch src/Api/Api.elm
+```
+
+E então vamos mover a url para o novo arquivo (`src/Api/Api.elm`), também moverei o `HttpData` da `Main`.
+
+```elm
+module Api.Api exposing (HttpData(..), apiUrl)
+
+-- TYPES
+
+
+type HttpData error data
+    = Loading
+    | Success data
+    | Error error
+
+
+
+-- HELPERS
+
+
+apiUrl : String
+apiUrl =
+    "https://elm-currency-api.herokuapp.com"
+```
+
+E agora basta importar no `History.elm` e `CurrencyRate.elm`:
+
+```elm
+import Api.Api exposing (apiUrl)
+```
+
+## Separando as páginas
+
+O próximo passo é separar as páginas de histórico e a de conversão. Vamos criar uma pasta chamada `Page` e dentro dela vamos criar um arquivo para cada página. Cada arquivo/módulo de página possuirá sua própria `Model`, `Msg`, `init`, `view`, `update`, `subscription` e mais umas funções que vão nos auxiliar. Também criaremos o módulo `Session.elm`, ele terá todo o estado que for comum entre as páginas.
+
+Vamos começar criando esses arquivos:
+
+```sh
+touch src/Session.elm # Cria o arquivo Session.elm na pasta src
+mkdir src/Page # Cria a pasta Page
+touch src/Page/Home.elm # Cria o arquivo Home.elm
+touch src/Page/History.elm # Cria o arquivo History.elm
+```
+
+Em seguida vamos trabalhar na `Session`. Por enquanto ela só terá a `key` e `url`:
+
+```elm
+module Session exposing (Session)
+
+import Browser.Navigation exposing (Key)
+import Url exposing (Url)
+
+
+
+-- MODEL
+
+
+type alias Session =
+    { url : Url
+    , key : Key
+    }
+```
+
+Agora vamos mover do `Main.elm` tudo que for relacionado à página de conversão, o arquivo `Home.elm` ficará assim:
+
+```elm
+port module Page.Home exposing (Model, Msg, init, subscriptions, toSession, update, view)
+
+import Api.Api exposing (HttpData(..))
+import Api.CurrencyRate exposing (CurrencyRate)
+import Browser
+import Html exposing (..)
+import Html.Attributes exposing (class, href, selected, type_, value)
+import Html.Events exposing (onInput)
+import Http
+import Session exposing (Session)
+
+
+
+-- MODEL
+
+
+type alias Model =
+    { session : Session
+    , from : String
+    , to : String
+    , amount : Float
+    , currencies : HttpData String (List CurrencyRate)
+    }
+
+
+init : Session -> ( Model, Cmd Msg )
+init session =
+    let
+        cmd =
+            Api.CurrencyRate.getCurrencyRates GotCurrencyRates
+    in
+    ( { session = session
+      , from = "BRL"
+      , to = "EUR"
+      , amount = 1
+      , currencies = Loading
+      }
+    , cmd
+    )
+
+
+
+-- VIEW
+
+
+view : Model -> Browser.Document Msg
+view model =
+    { title = "Conversor de moedas"
+    , body =
+        [ div [ class "flex justify-center pt-10 pb-5" ]
+            [ div [ class "w-full max-w-xs" ]
+                [ h1 [ class "text-center text-2xl mb-6" ] [ text "Conversor de Moedas" ]
+                , form [ class "bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4" ]
+                    (case model.currencies of
+                        Success currencies ->
+                            let
+                                result =
+                                    convertCurrency model.amount model.from model.to currencies
+                            in
+                            [ div [ class "mb-4" ]
+                                [ label [ class "block text-gray-700 text-sm font-bold mb-2" ] [ text "Moeda de origem" ]
+                                , div [ class "relative" ]
+                                    [ select
+                                        [ class selectClasses, value model.from, onInput ChangeOriginCurrency ]
+                                        [ option [ value "BRL", selected (model.from == "BRL") ] [ text "Real" ]
+                                        , option [ value "USD", selected (model.from == "USD") ] [ text "D√≥lar americano" ]
+                                        , option [ value "EUR", selected (model.from == "EUR") ] [ text "Euro" ]
+                                        ]
+                                    ]
+                                ]
+                            , div [ class "mb-4" ]
+                                [ label [ class "block text-gray-700 text-sm font-bold mb-2" ]
+                                    [ text "Moeda de destino" ]
+                                , div [ class "relative" ]
+                                    [ select
+                                        [ class selectClasses, value model.to, onInput ChangeDestinyCurrency ]
+                                        [ option [ value "USD", selected (model.to == "USD") ] [ text "D√≥lar americano" ]
+                                        , option [ value "BRL", selected (model.to == "BRL") ] [ text "Real" ]
+                                        , option [ value "EUR", selected (model.to == "EUR") ] [ text "Euro" ]
+                                        ]
+                                    ]
+                                ]
+                            , div [ class "mb-6" ]
+                                [ label [ class "block text-gray-700 text-sm font-bold mb-2" ]
+                                    [ text "Quantidade" ]
+                                , input [ type_ "number", onInput ChangeAmount, value (String.fromFloat model.amount), class "shadow appearence-none border rounded w-full py-2 px-3 text-gray" ] []
+                                ]
+                            , div [ class "flex w-full" ]
+                                [ button [ class "bg-blue-500 w-full hover:bg-blue-700 text-white font-bold py-2 px-4" ] [ text "Converter" ] ]
+                            , div [ class "flex w-full text-center mt-5 text-gray-700 text-sm" ]
+                                [ text ("Convertendo " ++ String.fromFloat model.amount ++ " " ++ model.from ++ " para " ++ model.to ++ " totalizando " ++ String.fromFloat result ++ " " ++ model.to) ]
+                            ]
+
+                        Loading ->
+                            [ div [ class "text-center" ] [ text "Carregando..." ] ]
+
+                        Error error ->
+                            [ div [ class "text-center text-red-700" ] [ text error ] ]
+                    )
+                ]
+            ]
+        , a [ href "/", class "mx-2" ] [ text "Conversor" ]
+        , a [ href "/history/from/EUR/to/BRL", class "mx-2" ] [ text "Histórico de BRL x EUR" ]
+        ]
+    }
+
+
+
+-- UPDATE
+
+
+type Msg
+    = ChangeOriginCurrency String
+    | ChangeDestinyCurrency String
+    | ChangeAmount String
+    | GotCurrencyRates (Result Http.Error (List CurrencyRate))
+
+
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case msg of
+        ChangeOriginCurrency currencyCode ->
+            ( { model | from = currencyCode }, Cmd.none )
+
+        ChangeDestinyCurrency currencyCode ->
+            ( { model | to = currencyCode }, Cmd.none )
+
+        ChangeAmount amount ->
+            case String.toFloat amount of
+                Just value ->
+                    ( { model | amount = value }, Cmd.none )
+
+                Nothing ->
+                    ( model, Cmd.none )
+
+        GotCurrencyRates response ->
+            case response of
+                Ok data ->
+                    ( { model | currencies = Success data }, saveCurrencies data )
+
+                Err _ ->
+                    ( { model | currencies = Error "Erro ao carregar as moedas" }, Cmd.none )
+
+
+
+-- SUBSCRIPTIONS
+
+
+subscriptions : Model -> Sub Msg
+subscriptions _ =
+    Sub.none
+
+
+
+-- PORTS
+
+
+port saveCurrencies : List CurrencyRate -> Cmd msg
+
+
+
+-- EXPORT
+
+
+toSession : Model -> Session
+toSession model =
+    model.session
+
+
+
+-- INTERNAL
+
+
+selectClasses : String
+selectClasses =
+    "block appearance-none w-full border shadow py-2 px-3 pr-8 rounded"
+
+
+convertCurrency : Float -> String -> String -> List CurrencyRate -> Float
+convertCurrency amount from to currencies =
+    let
+        destinyCurrencyValue =
+            if from == to then
+                1
+
+            else
+                List.filter (\currency -> currency.base == from) currencies
+                    |> List.head
+                    |> Maybe.map (getCurrencyValue to)
+                    |> Maybe.withDefault 0
+    in
+    destinyCurrencyValue * amount
+
+
+getCurrencyValue : String -> CurrencyRate -> Float
+getCurrencyValue currencyCode currencyRate =
+    let
+        maybeValue =
+            case currencyCode of
+                "USD" ->
+                    currencyRate.rates.usd
+
+                "EUR" ->
+                    currencyRate.rates.eur
+
+                "BRL" ->
+                    currencyRate.rates.brl
+
+                _ ->
+                    Just 0
+    in
+    Maybe.withDefault 0 maybeValue
+```
+
+E faremos o mesmo para a página de histórico (`src/Page/History.elm`):
+
+```elm
+module Page.History exposing (Model, Msg, init, subscriptions, toSession, update, view)
+
+import Api.Api exposing (HttpData(..))
+import Api.History exposing (HistoryItem)
+import Browser
+import DateFormat
+import Html exposing (..)
+import Html.Attributes exposing (class)
+import Http
+import Session exposing (Session)
+import Time exposing (Posix)
+
+
+-- MODEL
+
+
+type alias Model =
+    { session : Session
+    , from : String
+    , to : String
+    , history : HttpData String (List HistoryItem)
+    }
+
+
+init : Session -> String -> String -> ( Model, Cmd Msg )
+init session from to =
+    ( { session = session
+      , from = from
+      , to = to
+      , history = Loading
+      }
+    , Api.History.getHistory GotHistory from to
+    )
+
+
+
+-- VIEW
+
+
+view : Model -> Browser.Document Msg
+view model =
+    { title = "Histórico"
+    , body =
+        [ div [ class "flex justify-center pt-10 pb-5" ]
+            [ div [ class "w-full max-w-sm" ]
+                [ h1 [ class "text-center text-2xl mb-6" ] [ text <| "Hist√≥rico " ++ model.from ++ " x " ++ model.to ]
+                , div [ class "bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4" ]
+                    [ case model.history of
+                        Loading ->
+                            text "Carregando"
+
+                        Success history ->
+                            viewHistoryTable history
+
+                        Error error ->
+                            text error
+                    ]
+                ]
+            ]
+        ]
+    }
+
+
+viewHistoryRow : HistoryItem -> Html Msg
+viewHistoryRow historyItem =
+    tr []
+        [ td [ class "text-left" ] [ text <| formatPosix historyItem.date ]
+        , td [ class "text-left" ] [ text <| String.fromFloat historyItem.rate ]
+        ]
+
+
+viewHistoryTable : List HistoryItem -> Html Msg
+viewHistoryTable history =
+    table [ class "table-fixed w-full" ]
+        [ thead []
+            [ tr []
+                [ th [ class "w-3/4 text-left" ] [ text "Data" ]
+                , th [ class "w-1/4 text-left" ] [ text "Valor" ]
+                ]
+            ]
+        , tbody []
+            (List.take 30 history |> List.map viewHistoryRow)
+        ]
+
+
+
+-- UPDATE
+
+
+type Msg
+    = GotHistory (Result Http.Error (List HistoryItem))
+
+
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case msg of
+        GotHistory response ->
+            case response of
+                Ok data ->
+                    ( { model | history = Success data }, Cmd.none )
+
+                Err _ ->
+                    ( { model | history = Error "Erro ao carregar o histórico" }, Cmd.none )
+
+
+
+-- SUBSCRIPTIONS
+
+
+subscriptions : Model -> Sub Msg
+subscriptions _ =
+    Sub.none
+
+
+
+-- EXPORT
+
+
+toSession : Model -> Session
+toSession model =
+    model.session
+
+
+
+-- INTERNAL
+
+
+formatPosix : Posix -> String
+formatPosix =
+    DateFormat.format
+        [ DateFormat.dayOfMonthFixed
+        , DateFormat.text "/"
+        , DateFormat.monthFixed
+        , DateFormat.text "/"
+        , DateFormat.yearNumber
+        ]
+        Time.utc
+```
+
+Acabei esquecendo, mas também precisaremos criar a página de `NotFound`, que será exibida quando a rota não existe:
+
+```sh
+touch src/Page/NotFound.elm # Cria o arquivo NotFound.elm
+```
+
+E o arquivo ficará assim:
+
+```elm
+module Page.NotFound exposing (Model, Msg, init, subscriptions, toSession, update, view)
+
+import Browser
+import Html exposing (..)
+import Html.Attributes exposing (class, href)
+import Session exposing (Session)
+
+
+
+-- MODEL
+
+
+type alias Model =
+    Session
+
+
+init : Session -> ( Model, Cmd Msg )
+init session =
+    ( session, Cmd.none )
+
+
+
+-- VIEW
+
+
+view : Model -> Browser.Document Msg
+view _ =
+    { title = "404"
+    , body =
+        [ text "Página não encontrada"
+        , div [ class "mt-2" ]
+            [ a [ href "/" ] [ text "Home" ]
+            ]
+        ]
+    }
+
+
+
+-- UPDATE
+
+
+type Msg
+    = NoOp
+
+
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case msg of
+        NoOp ->
+            ( model, Cmd.none )
+
+
+
+-- SUBSCRIPTIONS
+
+
+subscriptions : Model -> Sub Msg
+subscriptions _ =
+    Sub.none
+
+
+
+-- EXPORT
+
+
+toSession : Model -> Session
+toSession model =
+    model
+
+```
+
+
+
+## Juntando as páginas
+
+Agora que separamos as páginas em módulos, precisaremos "juntar" todas elas no módulo `Main` para que a aplicação volte a funcionar. Bastante coisa vai mudar  agora, a `Main` não irá lidar com muita lógica, a maior parte do seu trabalho será delegar a lógica para a página que corresponde à rota atual.
+
+Começando pela model, ela será completamente diferente:
+
+```elm
+type Model
+    = Home Page.Home.Model
+    | History Page.History.Model
+    | NotFound Page.NotFound.Model
+```
+
+Agora a `Model` é um union type, onde cada página tem sua própria ramificação. O mesmo acontecerá com a `Msg`:
+
+```elm
+type Msg
+    = LinkClicked Browser.UrlRequest
+    | UrlChanged Url.Url
+    | GotHomeMsg Page.Home.Msg
+    | GotHistoryMsg Page.History.Msg
+    | GotNotFoundMsg Page.NotFound.Msg
+```
+
+Agora vamos escrever uma função helper que vai ser uma mão na roda para transformar as models e mensagens das páginas em models e mensagens que o `Main` possa entender:
+
+```elm
+updateWith : (subModel -> Model) -> (subMsg -> Msg)  -> ( subModel, Cmd subMsg ) -> ( Model, Cmd Msg )
+updateWith toModel toMsg ( subModel, subCmd ) =
+    ( toModel subModel
+    , Cmd.map toMsg subCmd
+    )
+```
+
+Parece complicado mas vamos quebrar em pedaços para ficar mais fácil de entender.
+
+O **primeiro parâmetro** (`toModel`) do tipo `subModel -> Model` representa um dos valores da nossa `Model`, ele pode ser `Home`, `History` ou `NotFound`. O `subModel` é a model de uma página, por exemplo `Home.Model`, `History.Model` ou `NotFound.Model`. Então, basicamente vamos meio que combinar a model de uma página (estamos chamando de `subModel`) com a model global. O mesmo acontece com o **segundo parâmetro** (`toMsg`), só que dessa vez é com a `Msg`. O **terceiro parâmetro** é um par de `subModel` e `subCmd`, iremos receber esse valor como resultado do `update` de uma página.
+
+No final, essa função vai retornar um par de `Model` e `Cmd Msg`.
+
+Vamos escrever outro helper, esse vai nos ajudar a pegar o valor de `session` em cada um dos possíveis valores da `Model`:
+
+```elm
+toSession : Model -> Session
+toSession model =
+    case model of
+        Home subModel ->
+            Page.Home.toSession subModel
+        
+        History subModel ->
+            Page.History.toSession subModel
+            
+        NotFound subModel ->
+            Page.NotFound.toSession subModel
+```
+
+Basicamente utilizamos a função `toSession` que declaramos dentro de cada página.
+
+A próxima função que vamos escrever é a `changeRouteTo`, ela ficará responsável por chamar o `init` da página que corresponde à rota atual e atualizar a `Model` principal de acordo (utilizando o `updateWith`):
+
+```elm
+changeRouteTo : Route -> Model -> ( Model, Cmd Msg )
+changeRouteTo route model =
+    let
+        session =
+            toSession model
+    in
+    case route of
+        Route.Home ->
+            Page.Home.init session
+                |> updateWith Home GotHomeMsg
+            
+        Route.History from to ->
+            Page.History.init session from to
+                |> updateWith History GotHistoryMsg
+            
+        Route.NotFound ->
+            Page.NotFound.init session
+                |> updateWith NotFound GotNotFoundMsg
+```
+
+Agora vamos reescrever a função `update` do módulo `Main`, a função dela é delegar as mensagens para o `update` que corresponde à página da rota atual:
+
+```elm
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case ( msg, model ) of
+        ( LinkClicked urlRequest, _ ) ->
+            case urlRequest of
+                Browser.Internal url ->
+                    ( model, Nav.pushUrl model.key (Url.toString url) )
+
+                Browser.External href ->
+                    ( model, Nav.load href )
+
+        ( UrlChanged url, _ ) ->
+            ( { model | url = url }, Cmd.none )
+
+        ( GotHomeMsg subMsg, Home subModel ) ->
+            Page.Home.update subMsg subModel
+                |> updateWith Home GotHomeMsg
+
+        ( GotHistoryMsg subMsg, History subModel ) ->
+            Page.History.update subMsg subModel
+                |> updateWith History GotHistoryMsg
+
+        ( GotNotFoundMsg subMsg, NotFound subModel ) ->
+            Page.NotFound.update subMsg subModel
+                |> updateWith NotFound GotNotFoundMsg
+
+        ( _, _ ) ->
+            -- Descarta as mensagens que foram enviadas para a página errada
+            ( model, Cmd.none )
+```
+
+Repara que a função está um pouco diferente agora, não estamos utilizando o pattern matching apenas na `msg`, mas também na `model`. Fazemos isso para que não seja possível atualizar a model quando a mensagem recebida for de uma página diferente da atual, por exemplo, imagina que o usuário está na página de histórico e por algum motivo a função `update` recebe uma mensagem para a página *home*, não faz sentido atualizar a página de histórico sendo que a mensagem  foi para a home né?
+
+O próximo passo é reescrever as subscriptions:
+
+```elm
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    case model of
+        Home subModel ->
+            Sub.map GotHomeMsg <| Page.Home.subscriptions subModel
+
+        History subModel ->
+            Sub.map GotHistoryMsg <| Page.History.subscriptions subModel
+
+        NotFound subModel ->
+            Sub.map GotNotFoundMsg <| Page.NotFound.subscriptions subModel
+```
+
+Aqui utilizamos a função `Sub.map` para transformar a mensagem das subscriptions da página em uma mensagem da `Main`.
+
+Vamos fazer o mesmo com a `view`:
+
+```elm
+view : Model -> Browser.Document Msg
+view model =
+    let
+        viewPage toMsg subView =
+            let
+                { title, body } =
+                    subView
+            in
+            { title = title
+            , body = List.map (Html.map toMsg) body
+            }
+    in
+    case model of
+        Home subModel ->
+            viewPage GotHomeMsg (Page.Home.view subModel)
+
+        History subModel ->
+            viewPage GotHistoryMsg (Page.History.view subModel)
+
+        NotFound subModel ->
+            viewPage GotNotFoundMsg (Page.NotFound.view subModel)
+```
+
+Aqui também criamos uma função para nos ajudar a converter a `subView`, isso foi necessário pois o tipo das views das páginas é `Html <pagina>.Msg` e na `Main` precisamos que seja `Html Msg`, então no pattern matching dizemos qual é a mensagem que deve ser enviada quando alguma mensagem vem da `subView` e passamos para o `Html.map`.
+
+Por último mas não menos importante, vamos reescrever o `init`:
+
+```elm
+init : Json.Encode.Value -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
+init flags url key =
+    let
+        model =
+            Page.Home.init (Session url key)
+                |> updateWith Home GotHomeMsg
+                |> Tuple.first
+    in
+    changeRouteTo (Route.fromUrl url) model
+```
+
+Aqui definimos que a página a `Model` começará com o valor de `Home`, mas só para que possamos criar um valor de `model` para passar para o `changeRouteTo` que irá retornar a model correta para a url inicial.
+
+Pronto, depois disso nossa aplicação estará pronta. O módulo `Main` ficou assim:
+
+```elm
+module Main exposing (main)
+
+import Api.CurrencyRate exposing (..)
+import Api.History exposing (..)
+import Browser
+import Browser.Navigation as Nav
+import Html exposing (..)
+import Json.Encode
+import Page.History
+import Page.Home
+import Page.NotFound
+import Route
+import Session exposing (Session)
+import Url
+
+
+
+-- MODEL
+
+
+type Model
+    = Home Page.Home.Model
+    | History Page.History.Model
+    | NotFound Page.NotFound.Model
+
+
+init : Json.Encode.Value -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
+init flags url key =
+    let
+        model =
+            Page.Home.init (Session url key)
+                |> updateWith Home GotHomeMsg
+                |> Tuple.first
+    in
+    changeRouteTo (Route.fromUrl url) model
+
+
+
+-- VIEW
+
+
+view : Model -> Browser.Document Msg
+view model =
+    let
+        viewPage toMsg subView =
+            let
+                { title, body } =
+                    subView
+            in
+            { title = title
+            , body = List.map (Html.map toMsg) body
+            }
+    in
+    case model of
+        Home subModel ->
+            viewPage GotHomeMsg (Page.Home.view subModel)
+
+        History subModel ->
+            viewPage GotHistoryMsg (Page.History.view subModel)
+
+        NotFound subModel ->
+            viewPage GotNotFoundMsg (Page.NotFound.view subModel)
+
+
+
+-- UPDATE
+
+
+type Msg
+    = LinkClicked Browser.UrlRequest
+    | UrlChanged Url.Url
+    | GotHomeMsg Page.Home.Msg
+    | GotHistoryMsg Page.History.Msg
+    | GotNotFoundMsg Page.NotFound.Msg
+
+
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    let
+        session =
+            toSession model
+    in
+    case ( msg, model ) of
+        ( LinkClicked urlRequest, _ ) ->
+            case urlRequest of
+                Browser.Internal url ->
+                    ( model, Nav.pushUrl session.key (Url.toString url) )
+
+                Browser.External href ->
+                    ( model, Nav.load href )
+
+        ( UrlChanged url, _ ) ->
+            changeRouteTo (Route.fromUrl url) model
+
+        ( GotHomeMsg subMsg, Home subModel ) ->
+            Page.Home.update subMsg subModel
+                |> updateWith Home GotHomeMsg
+
+        ( GotHistoryMsg subMsg, History subModel ) ->
+            Page.History.update subMsg subModel
+                |> updateWith History GotHistoryMsg
+
+        ( GotNotFoundMsg subMsg, NotFound subModel ) ->
+            Page.NotFound.update subMsg subModel
+                |> updateWith NotFound GotNotFoundMsg
+
+        ( _, _ ) ->
+            -- Descarta as mensagens que foram enviadas para a p√°gina errada
+            ( model, Cmd.none )
+
+
+
+-- SUBSCRIPTIONS
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    case model of
+        Home subModel ->
+            Sub.map GotHomeMsg <| Page.Home.subscriptions subModel
+
+        History subModel ->
+            Sub.map GotHistoryMsg <| Page.History.subscriptions subModel
+
+        NotFound subModel ->
+            Sub.map GotNotFoundMsg <| Page.NotFound.subscriptions subModel
+
+
+
+-- MAIN
+
+
+main : Program Json.Encode.Value Model Msg
+main =
+    Browser.application
+        { init = init
+        , view = view
+        , update = update
+        , subscriptions = subscriptions
+        , onUrlChange = UrlChanged
+        , onUrlRequest = LinkClicked
+        }
+
+
+
+-- INTERNAL
+
+
+updateWith : (subModel -> Model) -> (subMsg -> Msg) -> ( subModel, Cmd subMsg ) -> ( Model, Cmd Msg )
+updateWith toModel toMsg ( subModel, subCmd ) =
+    ( toModel subModel
+    , Cmd.map toMsg subCmd
+    )
+
+
+toSession : Model -> Session
+toSession model =
+    case model of
+        Home subModel ->
+            Page.Home.toSession subModel
+
+        History subModel ->
+            Page.History.toSession subModel
+
+        NotFound subModel ->
+            Page.NotFound.toSession subModel
+
+
+changeRouteTo : Route.Route -> Model -> ( Model, Cmd Msg )
+changeRouteTo route model =
+    let
+        session =
+            toSession model
+    in
+    case route of
+        Route.Home ->
+            Page.Home.init session
+                |> updateWith Home GotHomeMsg
+
+        Route.History from to ->
+            Page.History.init session from to
+                |> updateWith History GotHistoryMsg
+
+        Route.NotFound ->
+            Page.NotFound.init session
+                |> updateWith NotFound GotNotFoundMsg
+```
+
+Se você abrir a aplicação e abrir o debugger, verá que agora a model só mostra os valores da página atual em vez de também mostrar o estado das duas páginas:
+
+![](/images/elm-na-pratica-10/image-1.png)
+
+
+
+## Views reaproveitáveis
+
+Para finalizar vamos criar um rodapé que será exibido em todas as páginas, para isso, vamos criar uma nova pasta chamada `View`, ela conterá funções que retornam `Html msg` e que poderão ser utilizadas em qualquer página.
+
+```sh
+mkdir src/View # Cria a pasta View
+touch src/View/Footer.elm # Cria o arquivo Footer.elm
+```
+
+O footer irá conter alguns link, o arquivo ficará assim:
+
+```elm
+module View.Footer exposing (view)
+
+import Html exposing (..)
+import Html.Attributes exposing (class, href)
+
+
+view : Html msg
+view =
+    footer
+        [ class "flex flex-col" ]
+        [ a [ class "text-blue-600", href "/" ] [ text "Home" ]
+        , a [ class "text-blue-600", href "/about" ] [ text "Sobre" ]
+        , a [ class "text-blue-600", href "/history/from/BRL/to/EUR", class "mx-2" ] [ text "Histórico de BRL x EUR" ]
+        , a [ class "text-blue-600", href "/history/from/BRL/to/USD", class "mx-2" ] [ text "Histórico de BRL x USD" ]
+        , a [ class "text-blue-600", href "/history/from/EUR/to/BRL", class "mx-2" ] [ text "Histórico de EUR x BRL" ]
+        , a [ class "text-blue-600", href "/history/from/EUR/to/USD", class "mx-2" ] [ text "Histórico de EUR x USD" ]
+        , a [ class "text-blue-600", href "/history/from/USD/to/BRL", class "mx-2" ] [ text "Histórico de USD x BRL" ]
+        , a [ class "text-blue-600", href "/history/from/USD/to/EUR", class "mx-2" ] [ text "Histórico de USD x EUR" ]
+        ]
+```
+
+E usar esse footer na home:
+
+```diff
++ import View.Footer as Footer
+
+ -- código anterior
+
+-       , a [ href "/", class "mx-2" ] [ text "Conversor" ]
+-       , a [ href "/history/from/EUR/to/BRL", class "mx-2" ] [ text "Histórico de BRL x EUR" ]
++       , Footer.view
+
+```
+
+E no histórico:
+
+```diff
++ import View.Footer as Footer
+
+ -- código anterior
+
+view : Model -> Browser.Document Msg
+view model =
+    { title = "Histórico"
+    , body =
+        [ div [ class "flex justify-center pt-10 pb-5" ]
+            [ div [ class "w-full max-w-sm" ]
+                [ h1 [ class "text-center text-2xl mb-6" ] [ text <| "Histórico " ++ model.from ++ " x " ++ model.to ]
+                , div [ class "bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4" ]
+                    [ case model.history of
+                        Loading ->
+                            text "Carregando"
+
+                        Success history ->
+                            viewHistoryTable history
+
+                        Error error ->
+                            text error
+                    ]
+                ]
+            ]
++       , Footer.view
+        ]
+    }
+```
+
+
+
+## Como adicionar uma nova página
+
+A vantagem dessa estrutura de pastas é que fica bem mais fácil adicionar novas páginas na aplicação. Suponha que queiramos adicionar uma nova página na aplicação, quais são os passos que precisamos seguir?
+
+### Adicionando a página "Sobre"
+
+1. Adicionar uma nova rota no arquivo `Route.elm` e escrever o parser dessa rota:
+
+   ```diff
+   type Route
+       = Home
+       | History String String
+       | NotFound
+   +   | About
+   
+   
+   routeParser : Parser.Parser (Route -> a) a
+   routeParser =
+       Parser.oneOf
+           [ Parser.map Home Parser.top
+           , Parser.map History (Parser.s "history" </> Parser.s "from" </> Parser.string </> Parser.s "to" </> Parser.string)
+   +       , Parser.map About (Parser.s "about")
+           ]
+   ```
+
+2. Criar um novo módulo dentro da pasta `src/Page`, este módulo deve conter e expor uma `Model`, `Msg`, `view`, `update`, `init`, `subscriptions` e `toSession`:
+
+   ```elm
+   module Page.About exposing (Model, Msg, init, subscriptions, toSession, update, view)
+   
+   import Browser
+   import Html exposing (..)
+   import Html.Attributes exposing (class, href)
+   import Session exposing (Session)
+   import View.Footer as Footer
+   
+   
+   
+   -- MODEL
+   
+   
+   type alias Model =
+       { session : Session
+       , link : String
+       }
+   
+   
+   init : Session -> ( Model, Cmd Msg )
+   init session =
+       ( { session = session, link = "https://www.fidelisclayton.dev/series/elm-na-pratica" }, Cmd.none )
+   
+   
+   
+   -- VIEW
+   
+   
+   view : Model -> Browser.Document Msg
+   view model =
+       { title = "Sobre"
+       , body =
+           [ div [ class "flex justify-center pt-10 pb-5" ]
+               [ div [ class "w-full max-w-xs" ]
+                   [ h1 [ class "text-center text-2xl mb-6" ] [ text "Sobre" ]
+                   , div [ class "bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4" ]
+                       [ p []
+                           [ text "Um simples conversor de moedas criado na série de tutoriais "
+                           , a [ href model.link, class "text-blue-600" ] [ text "Elm na prática" ]
+                           , text "."
+                           ]
+                       ]
+                   ]
+               ]
+           , Footer.view
+           ]
+       }
+   
+   
+   
+   -- UPDATE
+   
+   
+   type Msg
+       = NoOp
+   
+   
+   update : Msg -> Model -> ( Model, Cmd Msg )
+   update msg model =
+       case msg of
+           NoOp ->
+               ( model, Cmd.none )
+   
+   
+   
+   -- SUBSCRIPTIONS
+   
+   
+   subscriptions : Model -> Sub Msg
+   subscriptions _ =
+       Sub.none
+   
+   
+   
+   -- EXPORT
+   
+   
+   toSession : Model -> Session
+   toSession =
+       .session
+   ```
+
+3. Adicionar um novo valor na `Model` do módulo `Main`, e a "sub model" precisa ser do tipo da model da nova pagina e é recomendável que esse novo valor tenha o mesmo nome da página.
+
+   ```diff
+   type Model
+       = Home Page.Home.Model
+       | History Page.History.Model
+       | NotFound Page.NotFound.Model
+   +   | About Page.About.Model
+   ```
+
+4. Adicionar um novo valor na `Msg` do módulo `Main`:
+
+   ```diff
+   type Msg
+       = LinkClicked Browser.UrlRequest
+       | UrlChanged Url.Url
+       | GotHomeMsg Page.Home.Msg
+       | GotHistoryMsg Page.History.Msg
+       | GotNotFoundMsg Page.NotFound.Msg
+   +   | GotAboutMsg Page.About.Msg
+   ```
+
+   *(Depois disso o compilador vai te guiar até que o código volte a compilar)*
+
+5. Adicionar a view da nova página dentro da `view` do módulo `Main`:
+
+   ```diff
+   view : Model -> Browser.Document Msg
+   view model =
+       let
+           viewPage toMsg subView =
+               let
+                   { title, body } =
+                       subView
+               in
+               { title = title
+               , body = List.map (Html.map toMsg) body
+               }
+       in
+       case model of
+           Home subModel ->
+               viewPage GotHomeMsg (Page.Home.view subModel)
+   
+           History subModel ->
+               viewPage GotHistoryMsg (Page.History.view subModel)
+   
+           NotFound subModel ->
+               viewPage GotNotFoundMsg (Page.NotFound.view subModel)
+   +
+   +       About subModel ->
+   +           viewPage GotAboutMsg (Page.About.view subModel)
+   ```
+
+6. Adicionar o `update` da nova página dentro do `update` do módulo `Main`:
+
+   ```diff
+   update : Msg -> Model -> ( Model, Cmd Msg )
+   update msg model =
+       let
+           session =
+               toSession model
+       in
+       case ( msg, model ) of
+           ( LinkClicked urlRequest, _ ) ->
+               case urlRequest of
+                   Browser.Internal url ->
+                       ( model, Nav.pushUrl session.key (Url.toString url) )
+   
+                   Browser.External href ->
+                       ( model, Nav.load href )
+   
+           ( UrlChanged url, _ ) ->
+               changeRouteTo (Route.fromUrl url) model
+   
+           ( GotHomeMsg subMsg, Home subModel ) ->
+               Page.Home.update subMsg subModel
+                   |> updateWith Home GotHomeMsg
+   
+           ( GotHistoryMsg subMsg, History subModel ) ->
+               Page.History.update subMsg subModel
+                   |> updateWith History GotHistoryMsg
+   
+           ( GotNotFoundMsg subMsg, NotFound subModel ) ->
+               Page.NotFound.update subMsg subModel
+                   |> updateWith NotFound GotNotFoundMsg
+   
+   +       ( GotAboutMsg subMsg, About subModel ) ->
+   +           Page.About.update subMsg subModel
+   +               |> updateWith About GotAboutMsg
+   
+           ( _, _ ) ->
+               -- Descarta as mensagens que foram enviadas para a p√°gina errada
+               ( model, Cmd.none )
+   ```
+
+7. Adicionar a `subscriptions` da nova página dentro das `subscriptions` do módulo `Main`:
+
+   ```diff
+   subscriptions : Model -> Sub Msg
+   subscriptions model =
+       case model of
+           Home subModel ->
+               Sub.map GotHomeMsg <| Page.Home.subscriptions subModel
+   
+           History subModel ->
+               Sub.map GotHistoryMsg <| Page.History.subscriptions subModel
+   
+           NotFound subModel ->
+               Sub.map GotNotFoundMsg <| Page.NotFound.subscriptions subModel
+   
+   +       About subModel ->
+   +           Sub.map GotAboutMsg <| Page.About.subscriptions subModel
+   ```
+
+8. Adicionar a `toSession` da nova página dentro da `toSession` do módulo `Main`:
+
+   ```diff
+   toSession : Model -> Session
+   toSession model =
+       case model of
+           Home subModel ->
+               Page.Home.toSession subModel
+   
+           History subModel ->
+               Page.History.toSession subModel
+   
+           NotFound subModel ->
+               Page.NotFound.toSession subModel
+   
+   +       About subModel ->
+   +           Page.About.toSession subModel
+   ```
+
+9. E por último vamos utilizar o `init` da nova página na função `changeRouteTo`:
+
+   ```diff
+   changeRouteTo : Route.Route -> Model -> ( Model, Cmd Msg )
+   changeRouteTo route model =
+       let
+           session =
+               toSession model
+       in
+       case route of
+           Route.Home ->
+               Page.Home.init session
+                   |> updateWith Home GotHomeMsg
+   
+           Route.History from to ->
+               Page.History.init session from to
+                   |> updateWith History GotHistoryMsg
+   
+           Route.NotFound ->
+               Page.NotFound.init session
+                   |> updateWith NotFound GotNotFoundMsg
+   +
+   +       Route.About ->
+   +           Page.About.init session
+   +               |> updateWith About GotAboutMsg
+   ```
+
+E é isso! Como você pôde ver, o processo é bastante simples porém é um pouco repetitivo.
+
+Código final: https://github.com/FidelisClayton/elm-currency-app/tree/parte-10
+
+## Conclusão
+
+Esta é a estrutura de pastas que utilizei em 80% dos projetos Elm em que trabalhei, as vezes é necessário fazer algumas pequenas alterações mas essa estrutura atende a maioria das necessidades de uma SPA.
+
+Acredito que esse seja o último tutorial dessa série mas talvez eu volte a postar outros tutoriais melhorando esta aplicação. Se gostou compartilha com os amigos e deixe suas dúvidas nos comentários.
+
+Até a próxima!

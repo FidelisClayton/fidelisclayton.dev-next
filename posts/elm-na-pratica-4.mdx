@@ -1,0 +1,319 @@
+---
+title: Type Signatures, Type Aliases e adicionando tipos à nossa aplicação
+date: "2020-03-11T00:00:00Z"
+keywords: tutorial de elm, tutorial de elm-lang, elm, elm-lang, como aprender elm, elm na pratica, aprender elm, como aprender elm, elm para iniciantes, elm tipos, elm compilador
+description: Aprenda a declarar tipos para tornar seu código Elm mais seguro e mais fácil de manter.
+category: Elm
+serie: Elm na prática
+episode: 4
+---
+
+Apesar do Elm ser uma linguagem fortemente tipada, ainda não utilizamos muito este recurso por aqui. Neste tutorial vamos entender a importancia dos tipos, como ler assinaturas e como adicionar tipos à nossas funções e variáveis.
+
+O código dos últimos tutoriais está disponível neste link: https://ellie-app.com/88NYGqX6QzVa1.
+
+Todas funções e variáveis que escrevemos até agora possuem um tipo associado a elas, mesmo que a gente não tenha escrito nada relacionado. Isso acontece porquê o compilador é capaz de inferir o tipo desses valores, mesmo quando não deixamos isso explícito.
+
+Vou mostrar aqui um exemplo que peguei da [documentação oficial do Elm](https://guide.elm-lang.org/types/) e que é um erro que acontece frequentemente no dia a dia de todos os programadores.
+
+O código a seguir define a função `toFullName` que extrai o nome completo de uma pessoa e retorna uma string:
+
+```elm
+toFullName person =
+  person.firstName ++ " " ++ person.lastName
+
+fullName =
+  toFullName { fistName = "Hermann", lastName = "Hesse" }
+```
+
+Você conseguiu ver o problema? Em outras linguagens não tipadas e que não são capazes de inferir tipos, provavelmente isso causaria um bug e que nem mesmo retornaria um erro, no javascript por exemplo, o retorno dessa função seria `undefined Hesse`. Agora veja o que acontece quando tentamos compilar esse código no Elm:
+
+![](/images/elm-na-pratica-4/image-1.png)
+
+Na linha destacada o compilador diz exatamente o que está errado, cometemos um erro de digitação. A função `toFullName` está esperando que o valor de `person` tenha a propriedade `firstName` mas o record que passamos para essa função possui a propriedade `fistName` (sem o "r"), o compilador foi capaz de identificar a semelhança entre os campos e nos dizer que cometemos um erro de digitação, isso tudo sem que precisássemos adicionar tipos aos valores, esse é o poder da inferência de tipos.
+
+## Descobrindo e lendo tipos
+
+Agora vamos aprender a ler os tipos, mas para isso precisamos descobrir quais são os tipos dos valores. Vamos abrir o Elm REPL através desse link: http://elmrepl.cuberoot.in/. Ele vai nos ajudar a descobrir os tipos das funções. 
+
+Vamos começar devagar, vou digitar um "Hello World" (com aspas) no REPL e apertar enter:
+
+![](/images/elm-na-pratica-4/image-2.gif)
+
+Depois de apertar enter, o REPL retornou `"Hello World": String`, isso quer dizer que o valor "Hello World" é do tipo `String`. Vamos fazer mais alguns testes:
+
+![](/images/elm-na-pratica-4/image-3.gif)
+
+Recebemos os seguintes resultados:
+
+- `[1, 2, 3]` : `List number`
+- `["one", "two", "three"]`: `List String`
+- `List.head`: `List a -> Maybe a`
+- `List.tail`: `List a -> Maybe (List a)`
+
+Os dois primeiros até que foram fáceis de entender né? O `List.head` e `List.tail`, são um pouco diferentes pois são funções. Vamos entender o que esses tipos significam.
+
+Vamos começar com o `List.head`, o tipo `List a -> Maybe a` significa que essa função recebe uma lista de `a` — "**a**" aqui significa que é um `type variable`, ou seja, é um tipo que pode variar. Sempre que você ver um "tipo" iniciando com letra minúscula significa que é um tipo genérico — e retorna um `Maybe a`, ou seja, vai retornar um `Maybe` com o mesmo tipo da lista do primeiro parâmetro. 
+
+```elm
+-- Nome da função:  Tipo do Parâmetro ->  Tipo do valor retornado (o último tipo após as setas (`->`) é o tipo do valor que será retornado)
+--      |                 |                         |
+--      v                 V                         V
+      head       :     List a         ->         Maybe a
+--   |---------------------------------------------------|
+--                           |
+--                           V
+--           Chamamos isso tudo de "Type Annotation"
+```
+
+O mesmo acontece com o `List.tail`:
+
+```elm
+-- Nome da função:  Tipo do Parâmetro ->  Tipo do valor retornado
+--      |                 |                         |
+--      v                 V                         V
+      tail       :     List a         ->         Maybe (List a)
+```
+
+Além do REPL, também podemos consultar os tipos de qualquer função através do site da documentação: https://package.elm-lang.org/packages/elm/core/latest/List#head.
+
+![](/images/elm-na-pratica-4/image-4.png)
+
+## Type Annotation
+
+Para definir um tipo para um valor ou função basta colocar a assinatura do tipo (Type annotation) logo acima da declaração do valor/variável, alguns exemplos:
+
+```elm
+name : String
+name = "John Doe"
+
+john : { firstName: String, lastName: String }
+john = { firstName = "John", lastName = "Doe" }
+
+toFullName : { firstName: String, lastName: String } -> String
+toFullName person = person.firstName ++ " "  ++ person.lastName
+
+sum : number -> number -> number
+sum a b = a + b
+```
+
+Só fazendo um adendo aqui, apesar da função `sum` possuir `type variables` na assinatura de tipo, ela não permite que passemos qualquer tipo de valor como parâmetro, por exemplo: `sum "a" "b"` ou `sum [1] [2]` não são permitidos mas `sum 1 2` e `sum 2.25 1.22` são.
+
+Isso acontece pois o `number` é um tipo diferente de `type variable`, ele é um dos `constrained type variable`, o _**constrained**_ significa que ele restringe os tipos permitidos. Quando o tipo de um parâmetro é `number`, ele pode ser tanto um `Int` quanto um `Float`. As outras `constrained type variables` são: 
+- `appendable`: permite `String` e `List a`
+- `comparable`: permite `Int`, `Float`, `Char`, `String` e listas e tuplas com valores do tipo `comparable`.
+- `compappend`: permite `String` e `List comparable`
+
+## Types Aliases
+
+O `Type Alias` como o nome já diz, dá um nome a um tipo que já existe, ou seja, quando declaramos um `Type alias` não estamos criando um novo tipo, apenas dando um “apelido”.
+
+Utilizando o exemplo anterior, vamos criar um alias para o valor `john`:
+
+```elm
+type alias Person =
+        { firstName: String
+        , lastName: String
+        }
+```
+
+E agora podemos utilizar esse novo nome (Person) na assinatura do valor de `john`:
+
+```elm
+john : Person
+john = { firstName: "John", lastName: "Doe" }
+```
+
+E também podemos fazer o mesmo na assinatura de `toFullName`:
+
+```elm
+toFullName : Person -> String
+toFullName person = person.firstName ++ " "  ++ person.lastName
+```
+
+Com isso já pudemos ver um dos benefícios do `type alias` que é a possibilidade de reduzir a repetição de código.
+
+Uma curiosidade sobre os `type aliases` é que eles também funcionam como "construtores", podemos utilizá-los como funções para criar um record:
+
+```elm
+john : Person
+john = Person "John" "Doe"
+
+-- é o mesmo que:
+
+john : Person
+john = { firstName = "John", lastName = "Doe" }
+```
+
+A sequência dos argumentos é a mesma que declaramos no `type alias`.
+
+## Adicionando tipos na nossa aplicação
+
+Agora que já aprendemos a ler e declarar tipos, vamos aplicar eles no nosso conversor. Vamos começar com o mais simples:
+
+```diff
++ selectClasses : String
+selectClasses =
+    "block appearance-none w-full border shadow py-2 px-3 pr-8 rounded"
+```
+
+Agora vamos adicionar tipos nas variáveis que contém os valores das moedas, mas antes vamos ver como é o `type annotation` de um Dict. Esse é o link para a documentação: https://package.elm-lang.org/packages/elm/core/1.0.5/Dict#Dict
+
+![image-5](/images/elm-na-pratica-5/image-5.gif)
+
+Então o tipo de um Dict é `Dict k v` onde `k` é o tipo da chave e o `v` é o tipo do valor. No nosso caso, as chaves são do tipo `String` e os valores são do tipo `Float` então o tipo é `Dict String Float`. Vamos adicionar isso ao nosso código:
+
+Primeiro vamos importar o tipo `Dict` do pacote `Dict`:
+
+```diff
++import Dict exposing (Dict)
+-import Dict
+```
+
+Em seguida vamos adicionar a `type annotation`:
+
+```diff
+
++brl : Dict String Float
+brl =
+    Dict.fromList
+        [ ( "EUR", 0.21 )
+        , ( "USD", 0.23 )
+        ]
+
++usd : Dict String Float
+usd =
+    Dict.fromList
+        [ ( "EUR", 0.92 )
+        , ( "BRL", 4.42 )
+        ]
+
++eur : Dict String Float
+eur =
+    Dict.fromList
+        [ ( "USD", 1.09 )
+        , ( "BRL", 4.81 )
+        ]
+```
+
+Repara que repetimos a mesma assinatura de tipos 3 vezes, que tal criar um `type alias` pra ela?
+
+```elm
+type alias CurrencyConversions = Dict String Float
+```
+
+E então podemos utilizá-lo:
+
+```diff
++brl: CurrencyConversions
+-brl : Dict String Float
+brl =
+    Dict.fromList
+        [ ( "EUR", 0.21 )
+        , ( "USD", 0.23 )
+        ]
+
++usd: CurrencyConversions
+-usd : Dict String Float
+usd =
+    Dict.fromList
+        [ ( "EUR", 0.92 )
+        , ( "BRL", 4.42 )
+        ]
+
++eur: CurrencyConversions
+-eur : Dict String Float
+eur =
+    Dict.fromList
+        [ ( "USD", 1.09 )
+        , ( "BRL", 4.81 )
+        ]
+```
+
+Dessa forma se quisermos alterar algum dos tipos do Dict (chave ou valor), só será necessÃ¡rio alterar em um lugar.
+
+E por fim vamos adicionar o tipo do `currencies`:
+
+```diff
++currencies: Dict String CurrencyConversions
+currencies =
+    Dict.fromList
+        [ ( "BRL", brl )
+        , ( "EUR", eur )
+        , ( "USD", usd )
+        ]
+```
+
+O próximo passo é declarar o tipo da model, para isso, vamos criar um `type alias`:
+
+```elm
+type alias Model =
+    { from : String
+    , to : String
+    , amount : Float
+    , result : Float
+    }
+```
+
+E agora usar esse type alias no `init`:
+
+```diff
++init : Model
+init =
+    { from = "BRL"
+    , to = "EUR"
+    , amount = 0
+    , result = 0
+    }
+```
+
+Agora a função `update`:
+
+```diff
++update : Msg -> Model -> Model
+update msg model =
+```
+
+Agora vamos adicionar o tipo da `view`:
+
+```diff
++view : Model -> Html Msg
+view model =
+```
+
+O tipo da `view` significa que vamos receber a model como parâmetro e vai retornar um `Html` que pode gerar mensagens do tipo `Msg`.
+
+E pra finalizar vamos adicionar o tipo da `main`, que de acordo com a [documentação](https://package.elm-lang.org/packages/elm/browser/latest/Browser#sandbox) é do tipo `Program () model msg`. Então vamos lá:
+
+```diff
++ main : Program () Model Msg
+main =
+```
+
+Mais pra frente vamos entender o que `Program () Model Msg` significa, ainda não é o momento mais adequado para isso.
+
+## Conclusão
+
+Terminamos de adicionar todos os tipos na nossa aplicação, mas quais são os benefícios disso?
+
+### Código "auto documentado"
+
+Com as assinaturas de tipos, o nosso código se torna meio que "auto documentado", pois quando temos todas as funções e valores com suas respectivas assinaturas de tipos, teremos um código bem mais fácil de ler e debugar pois sabemos exatamente o que entra e sai de cada função. 
+
+### Compilador ainda mais poderoso
+
+Com os tipos adicionados estáticamente, o compilador será capaz de nos mostrar mensagens de erros ainda mais precisas e inferir tipos com ainda mais precisão.
+
+### Mais fácil de refatorar ou estender o código
+
+Os tipos também são uma baita mão na roda quando estamos refatorando ou estendendo as funcionalidades de uma aplicação, qualquer mudança em uma assinatura de tipos vai ter que passar pelo compilador e o compilador nos dirá se essa mudança quebrou alguma outra função.
+
+### Produtividade
+
+Com todos os benefícios anteriores juntos, ganhamos outro que é o aumento na produtividade. Quando uma função está com sua assinatura de tipo, economizaremos tempo lendo e entendendo tal função, com o compilador mais poderoso poderemos resolver erros com mais velocidade e teremos muito mais confiança ao refatorar uma aplicação. Além disso, os tipos fazem com que o nosso editor de código (caso esteja configurado corretamente) nos dê dicas em tempo real enquanto estamos escrevendo código.
+
+Por hoje é só isso, foi um tutorial bem curto mas espero que tenha sido o suficiente para entender o sistema de tipos do Elm. O código atualizado está disponível nesse link: https://ellie-app.com/8g7xmgrCkf3a1.
+
+Colocarei o link para o próximo tutorial aqui assim que estiver pronto.
+
+Qualquer dúvida deixa nos comentários. Até a próxima!

@@ -1,0 +1,299 @@
+---
+title: Utilizando Ports e Flags para salvar e ler dados do localStorage
+date: "2020-05-30T18:00:02Z"
+description: Aprenda a salvar dados no localStorage utilizando Ports e Flags para se comunicar com o JS.
+keywords: tutorial de elm, como utilizar ports no elm, elm e javascript, elm flags, como usar localstorage no elm
+category: Elm
+serie: Elm na prática
+episode: 7
+---
+
+Neste tutorial vamos salvar os valores que recebemos do servidor utilizando a API de `localStorage`. No episódio 5 ao introduzir o `Browser.element`, falei sobre as diferentes formas de comunicar com o mundo exterior: `Cmd`, `Sub`, `flags` e `ports`. Hoje vamos aprender `flags` e `ports`, são as duas features que nos possibilitam comunicar com JavaScript.
+
+## O que é localStorage
+
+Local storage é um mini banco de dados que vem incluso no navegador, podemos persistir dados no formato de chave e valor (o valor só pode ser do tipo string) e esses dados não serão perdidos quando o usuário sair da aplicação e nem quando o browser for encerrado.
+
+Podemos salvar dados no `localStorage` utilizando JavaScript dessa maneira:
+
+```js
+window.localStorage.setItem('myName', 'Clayton')
+```
+
+E podemos recuperar essa informação utilizando o `getItem`, só precisamos utilizar a mesma chave que utilizamos para salvar a informação:
+
+```js
+window.localStorage.getItem('myName')
+```
+
+A API é bem simples e objetiva, mas infelizmente o Elm ainda não possui acesso nativo a essa, e muitas outras, API do browser. Para isso, vamos precisar utilizar `Ports`, que é uma feature do Elm que nos permite fazer comunicação com o JS.
+
+## Utilizando Ports
+
+Para possibilitar a criação de uma Port, precisamos adicionar a _keyword_ `port` na primeira linha do módulo:
+
+```diff
+- module Main exposing (main)
++ port module Main exposing (main)
+```
+
+Em seguida, quase no final do arquivo (antes da função `main`), vamos criar uma `port`:
+
+```diff
++ port saveCurrencies : List CurrencyRate -> Cmd msg
+
+main : Program () Model Msg
+main =
+```
+
+Agora vamos chamar essa Port assim que recebemos os dados da API de `currencies`:
+
+```diff
+GotCurrencyRates response ->
+    case response of
+        Ok data ->
+-          ( { model | currencies = Success data }, Cmd.none )
++          ( { model | currencies = Success data }, saveCurrencies data )
+
+        Err _ ->
+            ( { model | currencies = Error "Erro ao carregar as moedas" }, Cmd.none )
+```
+
+Tá quase tudo pronto, mas ainda falta o principal: escrever o código JS que vai se comunicar com essa Port. Para fazer isso, vamos abrir o arquivo `src/index.js` e adicionar algumas linhas de código:
+
+```diff
+import './main.css';
+import { Elm } from './Main.elm';
+import * as serviceWorker from './serviceWorker';
+
+- Elm.Main.init({
++ const app = Elm.Main.init({
+  node: document.getElementById('root')
+});
++
++app.ports.saveCurrencies.subscribe(function (currencies) {
++   window.localStorage.setItem('currencies', JSON.stringify(currencies));
++});
+
+// If you want your app to work offline and load faster, you can change
+// unregister() to register() below. Note this comes with some pitfalls.
+// Learn more about service workers: https://bit.ly/CRA-PWA
+serviceWorker.unregister();
+```
+
+Agora, ao abrir o conversor, aperte `F2`, abra a aba `Application` e clique em `Local Storage`, se tudo der certo, veremos os dados que foram salvos:
+
+![](/images/elm-na-pratica-7/image-1.gif)
+
+Agora vamos entender, parte por parte, o que fizemos:
+
+```elm
+port module Main exposing (main)
+```
+
+Primeiro adicionamos a keyword `port` para informar ao compilador que o módulo `Main` possui ports.
+
+```elm
+port saveCurrencies : List CurrencyRate -> Cmd msg
+```
+
+Em seguida, criamos uma port chamada `saveCurrencies`. Ela é uma função que vai receber uma lista de `CurrencyRate` (os dados que salvaremos no localStorage) e retorna uma `Cmd`.
+
+```elm
+( { model | currencies = Success data }, saveCurrencies data )
+```
+
+Depois disso, ao receber as `currencies` do servidor, utilizamos essa função, com os dados que acabamos de receber, no segundo parâmetro da tupla, assim o Elm saberá que desejamos que ele execute esse comando. Quando esse comando é executado, uma mensagem será emitida de forma que o JS consiga interpretar.
+
+```js
+app.ports.saveCurrencies.subscribe(function (currencies) {
+```
+
+Quando iniciamos uma aplicação Elm, a função `init` nos retorna um objeto `app` que possui várias informações sobre o módulo que foi iniciado. Dentre essas informações estão as ports, que podemos acessar através de `app.ports`. Cada port tem um método `subscribe`, ele serve para que o JS saiba quando alguma mensagem foi enviada pelo Elm. Assim, passamos uma função como callback para o `subscribe`, e essa função será executada sempre que essa port for chamada no Elm.
+
+```js
+app.ports.saveCurrencies.subscribe(function (currencies) {
+   window.localStorage.setItem('currencies', JSON.stringify(currencies));
+});
+```
+
+No callback da função nós salvamos os dados que enviamos dentro do Elm.
+
+## Utilizando Flags para passar valores iniciais
+
+Agora que já temos os dados salvos no `localStorage`, podemos pegar esses dados e passar para a nossa aplicação assim que ela iniciar. Faremos isso utilizando **Flags**, elas são bastante utilizadas para passar API Keys de serviços, variáveis de ambiente e informações do usuário.
+
+Para passar flags para o Elm, fazemos isso através do atributo `flag` da função `init`:
+
+```diff
+const app = Elm.Main.init({
+  node: document.getElementById('root'),
++ flags: {},
+})
+```
+
+Vamos criar uma função no JS responsável por pegar os dados no `localStorage`:
+
+```js
+function getCurrencies() {
+  try {
+    const currencies = window.localStorage.getItem('currencies')
+
+    return JSON.parse(currencies)
+  } catch (e) {
+    return []
+  }
+}
+```
+
+E então utilizamos ela no `Elm.Main.init`:
+
+```diff
+const app = Elm.Main.init({
+  node: document.getElementById('root'),
+- flags: {},
++ flags: getCurrencies(),
+})
+```
+
+Quase pronto. Agora no `init` do Elm, precisamos utilizar essas flags e salvá-las na model:
+
+```diff
+- init : () -> ( Model, Cmd Msg )
++ init : List CurrencyRate -> ( Model, Cmd Msg )
+- init _ =
++ init currencies =
+    ( { from = "BRL"
+      , to = "EUR"
+      , amount = 1
+-     , currencies = Loading
++     , currencies = Success currencies
+      }
+    , getCurrencyRates
+    )
+```
+
+Também precisamos atualizar a assinatura de tipo da função `main`:
+
+```diff
+- main : Program () Model Msg
++ main : Program (List CurrencyRate) Model Msg
+main =
+```
+
+Agora, se você já tiver com os dados no `localStorage`, perceberá que a tela de carregamento nem aparece. Isso é porque a aplicação iniciou com os dados que recebemos nas flags.
+
+Mas o que acontece se a gente não tiver dados no `localStorage`? Vamos testar:
+
+![](/images/elm-na-pratica-7/image-2.gif)
+
+Como pudemos ver, a aplicação nem inicia! Precisamos tomar todo cuidado possível quando utilizamos flags, pois caso o valor que passamos for diferente do que o `init` espera, a aplicação vai crashar. Podemos corrigir isso de duas maneiras. A primeira é corrigindo a função `getCurrencies` no JS, e a segunda é utilizando Decoders para decodificar o valor que recebemos nas flags. Vamos fazer os dois.
+
+Primeiro vamos corrigir a função `getCurrencies` de forma que ela retorne uma lista vazia, ao invés de `null`, quando não houver dados.
+
+```diff
+// src/index.js
+
+function getCurrencies() {
+  try {
+    const currencies = window.localStorage.getItem('currencies')
+
+-   return JSON.parse(currencies)
++   return JSON.parse(currencies) || []
+  } catch (e) {
+    return []
+  }
+}
+```
+
+Com isso, o conversor já volta a funcionar corretamente. Mas vamos implementar a segunda maneira, pois para mim, é a forma mais correta de lidar com `flags`.
+
+### Decodificando Flags para evitar problemas
+
+Vamos começar alterando o tipo das Flags, agora será do tipo `Json.Encode.Value`. Basicamente, esse tipo representa um valor do JavaScript (`null`, `undefined`, `string`, etc).
+
+Primeiro passo: importar o pacote `Json.Decode`:
+
+```diff
+port module Main exposing (main)
+
+import Browser
+import Dict exposing (Dict)
+import Html exposing (..)
+import Html.Attributes exposing (class, selected, type_, value)
+import Html.Events exposing (onInput, onSubmit)
+import Http
+import Json.Decode
++ import Json.Encode
+```
+
+Em seguida vamos alterar a assinatura da função `init` e `main`:
+
+```diff
+- init : List CurrencyRate -> ( Model, Cmd Msg )
++ init : Json.Encode.Value -> ( Model, Cmd Msg )
+- init currencies =
++ init flags =
+```
+
+```diff
+- main : Program (List CurrencyRate) Model Msg
++ main : Program Json.Encode.Value Model Msg
+main =
+```
+
+Quase lá! Agora só precisamos decodificar essas flags e salvar na model. Essa tarefa vai ficar a cargo da função `Json.Decode.decodeValue`, que é responsável por decodificar valores do tipo `Json.Encode.Value`. A função `init` ficará dessa maneira:
+
+```elm
+init : Json.Encode.Value -> ( Model, Cmd Msg )
+init flags =
+    let
+        currencies =
+            case Json.Decode.decodeValue (Json.Decode.list currencyRateDecoder) flags of
+                Ok decodedCurrencies ->
+                    Success decodedCurrencies
+
+                _ ->
+                    Loading
+    in
+    ( { from = "BRL"
+      , to = "EUR"
+      , amount = 1
+      , currencies = currencies
+      }
+    , getCurrencyRates
+    )
+```
+
+Pronto! Agora nossa aplicação está segura novamente (jajá faremos alguns testes).
+
+Agora vamos entender o que ta acontecendo.
+
+```elm
+case Json.Decode.decodeValue (Json.Decode.list currencyRateDecoder) flags of
+```
+
+Aqui utilizamos a função `decodeValue` dizendo que esperamos que o valor seja uma lista de `CurrencyRate` através do decoder que já tínhamos criado antes (`Json.Decode.list currencyRateDecoder`) e passamos as `flags` no último parâmetro. O resultado dessa função é do tipo `Result`, então precisamos tratar a possibilidade de `Result.Ok` e `Result.Err`.
+
+```elm
+case Json.Decode.decodeValue (Json.Decode.list currencyRateDecoder) flags of
+    Ok decodedCurrencies ->
+        Success decodedCurrencies
+
+    _ ->
+        Loading
+```
+
+Se o valor for decodificado corretamente, vamos utilizar o valor decodificado, quando algum erro ocorrer, definimos o valor inicial de `currencies` como `Loading`.
+
+Pronto, depois de configurado as portas dessa maneira, nossa aplicação se torna bem mais resiliente à erros do JavaScript e não irá quebrar caso algum valor seja inesperado.
+
+Para testar isso, basta passar `undefined` como `flag` e abrir a aplicação. O esperado é que ela inicie normalmente.
+
+**Código atualizado**: https://github.com/FidelisClayton/elm-currency-app/tree/parte-7
+
+## Conclusão
+
+Aprendemos a utilizar `Ports` e `Flags`, que são duas funcionalidades que serão muito utilizadas quando você estiver trabalhando com grandes aplicações ou estiver migrando uma aplicação JS para Elm. É importante lembrar que com a utilização do JS, tornaremos nossa aplicação mais suscetível a erros, então tome todo cuidado possível e lembre-se de sempre utilizar `Json.Encode.Value` quando for mandar algum valor para dentro do Elm.
+
+Por hoje é isso, espero que tenha gostado. Até a próxima!

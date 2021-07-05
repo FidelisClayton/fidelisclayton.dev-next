@@ -1,0 +1,338 @@
+---
+title: The Elm Architecture, Records, funções e exibindo dados da Model
+date: "2020-03-04T00:00:01Z"
+description: Entenda como funciona a arquitetura do Elm e aprenda como criar funções, records e exibir dados da model na interface do usuário.
+keywords: tutorial de elm, tutorial de elmlang, elm, elmlang, como aprender elm, elm na pratica, aprender elm, como aprender elm, elm para iniciantes
+category: Elm
+serie: Elm na prática
+episode: 2
+---
+Neste tutorial vamos dar vida ao nosso conversor de moedas, se você não viu a parte 1 dessa série de tutoriais, corre lá e dá uma olhada, o link para o código de onde paramos está disponível neste link: https://ellie-app.com/88hp8WgJd5Ca1.
+
+## The Elm Architecture
+
+Antes de colocar-mos a mão no código, vamos entender como a arquitetura do Elm funciona. Até agora só renderizamos uma tela utilizando as funções do pacote HTML, mas só com isso não vamos conseguir construir algo realmente útil, onde um usuário pode interagir com a nossa aplicação. Para isso, vamos utilizar algumas funções do pacote `Browser` que implementam a **Arquitetura do Elm**.
+
+A forma mais básica dessa arquitetura é dividida em 3 partes:
+
+### Model
+
+A **Model** representa o estado inicial da nossa aplicação, é nela que informamos como será a estrutura de dados da nossa aplicação. Usando nosso conversor como exemplo, a **model** dele será assim:
+
+```elm
+init =
+    { from = "BRL"
+    , to = "USD"
+    , amount = 0
+    }
+```
+
+### view
+
+A **view** é uma função que recebe a **model** da aplicação como parâmetro e retorna um Html. Essa parte já vimos no tutorial anterior, a única diferença aqui é que com a função `view` podemos trabalhar com os dados do estado da aplicação. Continuando o exemplo anterior, poderiamos utilizar a `model` para exibir seus dados para o usuário desta forma:
+
+```elm 
+view model =
+    text
+        ("Convertendo " ++ String.fromFloat model.amount ++ " " ++ model.from ++ " para " ++ model.to)
+```
+
+### update
+
+A função **update** Ã© o cérebro da arquitetura, é responsável por fazer as atualizações na **model** e precisa de dois parâmetros para funcionar, o primeiro é uma "mensagem" e o segundo é a **model** atual. Seguindo com o exemplo do nosso contador, uma forma muito simples de escrever a funçāo **update** seria essa:
+
+```elm
+update message model =
+    if message === "Mudar moeda de origem para BRL" then
+        { model | from = "BRL" }
+    else if message === "Mudar moeda de origem para USD" then
+        { model | from = "USD" }
+    else
+        model
+```
+
+Utilizamos a mensagem para decidir como vamos atualizar a model, mas não de apegue a esse exemplo, essa é uma forma bem básica para mostrar como implementar uma função update e em breve aprenderemos uma forma melhor de implementar essa função.
+
+### Juntando tudo
+
+Para que as 3 partes possam conversar, precisaremos utilizar a função `Browser.sandbox`:
+
+```elm
+main =
+    Browser.sandbox { init = init, view = view, update = update }
+```
+
+O `sandbox` é a forma mais simples de utilizar a arquitetura Elm, logo, possui algumas limitações, como por exemplo, uma aplicação `sandbox` não consegue se comunicar com o "mundo exterior", ou seja, você não vai conseguir fazer requisições para servidores ou chamar funções do JavaScript (sim, isso é possível). Por ora, ela será perfeita para nosso caso de uso.
+
+Toda vez que o usuário utiliza alguma função na nossa aplicação, a `view` vai emitir uma mensagem desencadeando uma série de atualizações:
+
+![](/images/elm-na-pratica-2/image-1.png)
+
+## Implementando a arquitetura Elm
+
+Agora que já entendemos como funciona a arquitetura do Elm, vamos implementar ela no nosso conversor.
+
+Primeiro vamos importar o módulo `Browser`, ele possui a função `sandbox` que vai ser responsável por juntar a `view`, `model` e `update`:
+
+```diff
+module Main exposing (main)
+
++ import Browser
+import Html exposing (..)
+import Html.Attributes exposing (class, type_, value)
+```
+
+Em seguida vamos criar a função `update` e o `init`:
+
+```diff
+selectClasses =
+    "block appearance-none w-full border shadow py-2 px-3 pr-8 rounded"
+
++ init =
++    { from = "BRL"
++    , to = "EUR"
++    , amount = 0
++    , result = 0
++    }
+
++ update msg model =
++    model
+
+main =
+```
+
+Agora vamos renomear a função `main` para `view` e fazer com que ela receba a model como parãmetro:
+
+```diff
+- main =
++ view model =
+```
+
+E para finalizar, no final do arquivo vamos criar a nova `main` utilizando o `Browser.sandbox` para colocar tudo em ordem:
+
+```elm
+main =
+    Browser.sandbox
+        { init = init
+        , view = view
+        , update = update
+        }
+```
+
+Bom, com esse novo código introduzimos uma série de novos conceitos, então vamos por partes:
+
+## Record
+
+Quando criamos o `init`, utilizamos uma estrutura de dados chamada **Record**, ela possui chaves e valores para representar alguma informação, por exemplo:
+
+```elm
+kobe =
+    { firstName = "Kobe", lastName = "Bryant", number = 8, team = "Lakers", championships = 5 }
+```
+
+A sintaxe é simples, iniciamos um record utilizando uma chave (`{ `) e em seguida informamos quais são as "chaves" e "valores" que esse record possui, e cada par de chave e valor é separado por vírgula e no final fechamos a chave (`}`).
+
+```elm
+myRecord =
+    { chave1 = "Valor 1", chave2 = "Valor 2", chave3 = "Valor 3" }
+```
+
+### Acessando valores de um Record
+
+Temos duas formas de acessar os valores de um Record no Elm, a primeira é a forma mais tradicional e que está presente em todas as linguagens de programação:
+
+```elm
+kobe.firstName
+kobe.lastName
+kobe.number
+```
+
+A segunda forma de acessar um valor de um Record é através de funções que o Elm disponibiliza com o nome da propriedade do record:
+
+```elm
+.firstName kobe
+.lastName kobe
+.number kobe
+```
+
+Um ponto que vale muito a pena mencionar é que em nenhuma das duas formas permite que você tente acessar uma chave que não existe no record, caso tente, o compilador vai te alertar. Por exemplo:
+
+```elm
+kobe.middleName -- middleName não existe no record, logo não irá compilar
+.height kobe -- height não existe no record, logo não irá compilar
+```
+
+### Atualizando valores de um Record
+
+A forma de atualizar um valor de um Record é diferente da maioria das outras linguagens de programação, a forma padrão de fazer isso na maioria delas é definindo o valor diretamente, algo parecido com isso:
+
+```elm
+kobe.number = 24
+```
+
+No Elm, isso não é permitido, como utilizamos estrutura de dados imutáveis (falaremos sobre isso no futuro), não podemos modificar um valor. Para fazer isso no Elm, precisamos criar uma nova cópia do valor anterior mas atualizando os campos que precisamos, no Elm fazemos isso dessa maneira:
+
+```elm
+{ kobe | number = 24 }
+```
+
+Lê-se: "Pega tudo do record `kobe` e atualiza a propriedade `number` com o valor `24`".
+
+Também podemos atualizar várias propriedades ao mesmo tempo:
+
+```elm
+{ kobe | number = 10, team = "USA National Team" }
+```
+
+Também vale salientar que não podemos adicionar uma propriedade que não existe no record original, caso a gente tente, o código não irá compilar.
+
+```elm
+{ kobe | height = 198 } -- Não irá compilar pois a propriedade height não existe no record original
+```
+
+## Funções
+
+Outro conceito que introduzimos aqui foram as funções, talvez você nem tenha percebido pois a sintaxe delas é bem limpa, por exemplo:
+
+```elm
+soma a b = a + b
+
+subtrai a b = a - b
+
+multiplica a b = a * b
+
+divide a b = a / b
+```
+
+Viu como é simples? Não utilizamos parênteses, vírgulas ou chaves para definir uma função. Primeiro definimos o nome da função, em seguida seus argumentos separados por espaço, após os argumentos utilizamos o sinal de igualdade (`=`) para separar a definição da função e o corpo. Tudo após o sinal de igualdade faz parte do corpo da função.
+
+```elm
+<nome da funcao> <primeiro argumento> <segundo argumento> = <corpo>
+soma              a                    b                  = a + b
+```
+
+Ah, reparou que também não utilizamos nenhuma `return`? No Elm, o valor no fim de uma expressão sempre será retornado.
+
+Talvez você esteja se perguntando como sabemos que o corpo de uma função terminou se a gente não utilizou nenhum caractère para delimitar o corpo, a resposta é simples, o corpo é delimitado pela identação do código:
+
+```elm
+soma a b =
+    a + b
+    -- fim da função "soma"
+    
+subtrai a b =
+    a - b
+    -- fim da função "subtrai"
+```
+
+Agora voltando ao nosso exemplo. Lembra que criamos a função `update`? Dá uma olhadinha nela agora, aposto que você vai entender melhor. 
+
+```elm
+update msg model =
+        model
+```
+
+Repara que nós criamos ela e imediatamente retornamos o valor da model, vamos deixar ela assim por enquanto só para conseguirmos compilar a aplicação, já já iremos implementar a lógica dela.
+
+Acredito que com essa explicação conseguiremos prosseguir sem muitos problemas, mas antes, clique para compilar o código e vamos nos certificar de que irá compilar sem erros. Tudo certo? Então vamos continuar.
+
+## Renderizando a model na view
+
+Agora vamos utilizar a `view` para exibir os dados da `model`, então vamos exibir o valor `result` da model (que no futuro iremos utilizar para salvar o resultado da conversão) logo após o botão:
+
+```diff
+                , div [ class "mb-6" ]
+                    [ label [ class "block text-gray-700 text-sm font-bold mb-2" ]
+                        [ text "Quantidade"
+                        ]
+                    , input [ type_ "number", class "shadow appearence-none border rounded w-full py-2 px-3 text-gray" ] []
+                    ]
+                , div [ class "flex w-full" ]
+                    [ button [ class "bg-blue-500 w-full hover:bg-blue-700 text-white font-bold py-2 px-4" ] [ text "Converter" ] ]
++               , div [ class "flex w-full text-center mt-5 text-gray-700 text-sm" ]
++                   [ text ("Convertendo " ++ String.fromFloat model.amount ++ " " ++ model.from ++ " para " ++ model.to ++ " totalizando " ++ String.fromFloat model.result ++ " " ++ model.to) ]
+               ]
+```
+
+Após compilar nossa tela ficará assim:
+
+![](/images/elm-na-pratica-2/image-2.png)
+
+Repara que agora estamos exibindo os dados da model no final do formulário. Você pode pegar o código atualizado [neste link](https://ellie-app.com/88hPGjDDCHpa1).
+
+Percebeu que a moeda de destino está exibindo "Dólar americano" quando deveria estar exibindo o valor que está na model ("Euro")? Isso acontece porque não estamos utilizando a model nos valores dos inputs. Vamos corrigir isso agora:
+
+```diff
+-- primeiro vamos importar o atributo "selected"
+- import Html.Attributes exposing (class, type_, value)
++ import Html.Attributes exposing (class, type_, value, selected)
+```
+
+```diff
+            , form [ class "bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4" ]
+                [ div [ class "mb-4" ]
+                    [ label [ class "block text-gray-700 text-sm font-bold mb-2" ]
+                        [ text "Moeda de origem" ]
+                    , div [ class "relative" ]
+                        [ select
+-                           [ class selectClasses ]
+-                           [ option [ value "BRL"] [ text "Real" ] 
+-                           , option [ value "USD"] [ text "Dólar americano" ]
+-                           , option [ value "EUR"] [ text "Euro" ]
++                           [ class selectClasses, value model.from ]
++                           [ option [ value "BRL", selected (model.from == "BRL") ] [ text "Real" ]
++                           , option [ value "USD", selected (model.from == "USD") ] [ text "Dólar americano" ]
++                           , option [ value "EUR", selected (model.from == "EUR") ] [ text "Euro" ]
+                            ]
+                        ]
+                    ]
+                , div [ class "mb-4" ]
+                    [ label [ class "block text-gray-700 text-sm font-bold mb-2" ]
+                        [ text "Moeda de destino"
+                        ]
+                    , div [ class "relative" ]
+                        [ select
+-                           [ class selectClasses ]
+-                           [ option [ value "USD"] [ text "Dólar americano" ]
+-                           , option [ value "BRL"] [ text "Real" ]
+-                           , option [ value "EUR"] [ text "Euro" ]
++                           [ class selectClasses, value model.to ]
++                           [ option [ value "USD", selected (model.to == "USD") ] [ text "Dólar americano" ]
++                           , option [ value "BRL", selected (model.to == "BRL") ] [ text "Real" ]
++                           , option [ value "EUR", selected (model.to == "EUR") ] [ text "Euro" ]
+                            ]
+                        ]
+                    ]
+                , div [ class "mb-6" ]
+                    [ label [ class "block text-gray-700 text-sm font-bold mb-2" ]
+                        [ text "Quantidade"
+                        ]
+-                   , input [ type_ "number", class "shadow appearence-none border rounded w-full py-2 px-3 text-gray" ] []
++                   , input [ type_ "number", value (String.fromFloat model.amount), class "shadow appearence-none border rounded w-full py-2 px-3 text-gray" ] []
+                    ]
+```
+
+### Uma rápida explicação
+
+O atributo `selected` precisa que seu parâmetro seja um valor boleano, então para conseguir esse valor boleano, verificamos se o valor selecionado na model é o mesmo que o valor da `option`:
+
+```elm
+selected (model.from == "BRL")
+selected (model.to == "BRL")
+```
+
+No Elm, fazemos comparação de valores utilizando `==` (dois sinais de igualdade). Agora no `input` de quantidade, utilizamos a função `String.fromFloat` pois o atributo `value` precisa que seu parâmetro seja do tipo `string`.
+
+```elm
+value (String.fromFloat model.amount)
+```
+
+Agora quando clicar-mos para compilar, todos os valores deverão ser exibidos corretamente:
+
+![](/images/elm-na-pratica-2/image-3.png)
+
+## Conclusão
+
+Vou encerrar a parte 2 por aqui para que não fique muito extenso. Leve o tempo que precisar para entender o que aprendemos nesse tutorial. Hoje você aprendeu conceitos muito importantes (The Elm Architecture, funções e records) e que serão utilizados com muita frequência daqui pra frente.
+
+No próximo tutorial vamos (finalmente) adicionar a lógica para calcular a conversão das moedas. O código final dessa parte está disponível [neste link](https://ellie-app.com/88hXjYRzqbwa1) e basta [clicar aqui](/20200304-elm-na-pratica-3) para iniciar o próximo tutorial.

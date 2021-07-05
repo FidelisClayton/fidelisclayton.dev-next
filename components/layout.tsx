@@ -7,7 +7,11 @@ import utilStyles from '../styles/utils.module.css'
 const name = 'Clayton Fidelis'
 export const siteTitle = 'My blog'
 
-export default function Layout({ children, home }) {
+type Props = {
+  home?: boolean
+}
+
+const Layout: React.FC<Props> = ({ children, home }) => {
   return (
     <div className={styles.container}>
       <Head>
@@ -25,6 +29,7 @@ export default function Layout({ children, home }) {
         <meta name="og:title" content={siteTitle} />
         <meta name="twitter:card" content="summary_large_image" />
       </Head>
+
       <header className={styles.header}>
         {home ? (
           <>
@@ -60,7 +65,9 @@ export default function Layout({ children, home }) {
           </>
         )}
       </header>
+
       <main>{children}</main>
+
       {!home && (
         <div className={styles.backToHome}>
           <Link href="/">
@@ -71,3 +78,5 @@ export default function Layout({ children, home }) {
     </div>
   )
 }
+
+export default Layout

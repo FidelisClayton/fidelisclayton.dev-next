@@ -1,16 +1,29 @@
 import fs from 'fs'
 import path from 'path'
 import matter from 'gray-matter'
+import { serialize } from 'next-mdx-remote/serialize'
 import remark from 'remark'
 import html from 'remark-html'
+import { MDXRemoteSerializeResult } from 'next-mdx-remote'
 
 const postsDirectory = path.join(process.cwd(), 'posts')
 
-export function getSortedPostsData() {
+export type PostMeta = {
+  id: string
+  date: string
+  title: string
+}
+
+export type Post = PostMeta & {
+  contentHtml?: string
+  source: MDXRemoteSerializeResult
+}
+
+export const getSortedPostsData = (): PostMeta[] => {
   const fileNames = fs.readdirSync(postsDirectory)
 
-  const allPostsData = fileNames.map((fileName) => {
-    const id = fileName.replace(/\.md$/, '')
+  const allPostsData: PostMeta[] = fileNames.map((fileName) => {
+    const id = fileName.replace(/\.mdx$/, '')
 
     const fullPath = path.join(postsDirectory, fileName)
     const fileContents = fs.readFileSync(fullPath, 'utf8')
@@ -20,7 +33,7 @@ export function getSortedPostsData() {
     return {
       id,
       ...matterResult.data,
-    }
+    } as PostMeta
   })
 
   return allPostsData.sort(({ date: a }, { date: b }) => {
@@ -39,16 +52,17 @@ export function getAllPostIds() {
 
   return fileNames.map((fileName) => ({
     params: {
-      id: fileName.replace(/\.md$/, ''),
+      id: fileName.replace(/\.mdx$/, ''),
     },
   }))
 }
 
-export async function getPostData(id) {
-  const fullPath = path.join(postsDirectory, `${id}.md`)
+export const getPostData = async (id: string): Promise<Post> => {
+  const fullPath = path.join(postsDirectory, `${id}.mdx`)
   const fileContents = fs.readFileSync(fullPath, 'utf8')
 
   const matterResult = matter(fileContents)
+  const source = await serialize(matterResult.content)
 
   const processedContent = await remark()
     .use(html)
@@ -60,5 +74,6 @@ export async function getPostData(id) {
     id,
     contentHtml,
     ...matterResult.data,
-  }
+    source,
+  } as Post
 }
