@@ -12,6 +12,11 @@ export type PostMeta = {
   id: string
   date: string
   title: string
+  category?: string
+  description: string
+  episode?: number
+  keywords?: string
+  serie?: string
 }
 
 export type Post = PostMeta & {

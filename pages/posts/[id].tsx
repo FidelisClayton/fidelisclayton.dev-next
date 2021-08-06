@@ -3,7 +3,7 @@ import Head from 'next/head'
 import prism from 'prismjs'
 
 // @ts-ignore
-import 'prismjs/components/prism-elm'
+import 'prismjs/components/prism-elm.min'
 
 import Layout from '../../components/layout'
 import Date from '../../components/date'
