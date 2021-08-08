@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { PostMeta } from '../../lib/posts'
-import Date from '../date'
 
 type Props = { post: PostMeta }
 

@@ -1,5 +1,6 @@
-import '../styles/global.css'
 import 'prismjs/themes/prism-tomorrow.css'
+
+import '../styles/global.css'
 
 type Props = {
   Component: React.ComponentType
