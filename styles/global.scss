@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .prose {
+    max-width: unset;
+    p {
+      @apply dark:text-gray-300 text-gray-800;
+    }
+
+    h1,
+    h3,
+    h4,
+    h5 {
+      @apply text-gray-800 dark:text-gray-300;
+    }
+
+    h2 {
+      @apply text-green-600;
+      @apply text-transparent
+        bg-clip-text
+        bg-gradient-to-tr
+        from-green-600
+        to-green-900
+        dark:from-green-400
+        dark:to-green-700;
+    }
+
+    code {
+      @apply text-yellow-500;
+    }
+
+    strong {
+      @apply text-current font-normal font-semibold;
+    }
+  }
+}
+
+.token {
+  &.constant {
+    @apply text-yellow-500;
+  }
+
+  &.string {
+    @apply text-green-500;
+  }
+
+  &.keyword {
+    @apply text-purple-500;
+  }
+}

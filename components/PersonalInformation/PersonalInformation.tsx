@@ -5,18 +5,24 @@ import ThemeSwitcher from '../ThemeSwitcher/ThemeSwitcher'
 const PersonalInformation = () => {
   return (
     <div>
-      <Avatar />
+      <div className="flex md:flex-col items-center md:items-start space-x-4 md:space-x-0">
+        <Avatar
+          className="flex-shrink-0 w-12 h-12 md:w-24 md:h-24"
+          width={96}
+          height={96}
+        />
 
-      <div className="flex items-center justify-between text-gray-900 dark:text-gray-200">
-        <div className="relative inline-block mt-4 mb-6">
-          <div className="absolute top-0 mt-3 w-full h-4 dark:bg-gray-700 bg-indigo-100 blur-xl rounded transform rotate-[-1deg]" />
+        <div className="flex items-center justify-between w-full text-gray-900 dark:text-gray-200">
+          <div className="relative inline-block md:mt-4 md:mb-6">
+            <div className="absolute top-0 mt-3 w-full h-4 dark:bg-gray-700 bg-indigo-100 blur-xl rounded transform rotate-[-1deg]" />
 
-          <h1 className="relative inline-block text-3xl font-semibold">
-            Clayton Fidelis
-          </h1>
+            <h1 className="relative inline-block text-xl font-semibold md:text-3xl">
+              Clayton Fidelis
+            </h1>
+          </div>
+
+          <ThemeSwitcher />
         </div>
-
-        <ThemeSwitcher />
       </div>
 
       <div className="hidden mb-2 space-x-2 md:block">

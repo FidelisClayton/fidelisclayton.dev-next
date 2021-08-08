@@ -5,12 +5,11 @@ import prism from 'prismjs'
 // @ts-ignore
 import 'prismjs/components/prism-elm.min'
 
-import Layout from '../../components/layout'
 import Date from '../../components/date'
 import { getAllPostIds, getPostData, Post as PostType } from '../../lib/posts'
-import utilStyles from '../../styles/utils.module.css'
 import { MDXRemote } from 'next-mdx-remote'
 import { useEffect } from 'react'
+import PostLayout from '../../components/PostLayout/PostLayout'
 
 type Props = {
   post: PostType
@@ -22,21 +21,28 @@ const Post: React.FC<Props> = ({ post }) => {
   }, [])
 
   return (
-    <Layout>
+    <PostLayout>
       <Head>
         <title>{post.title}</title>
       </Head>
 
-      <article>
-        <h1 className={utilStyles.headingXl}>{post.title}</h1>
+      <article className="prose prose-lg prose-indigo">
+        <div className="relative mb-24">
+          {post.episode && (
+            <div
+              aria-hidden="true"
+              className="text-[10rem] top-0 leading-none mt-[-60px] font-bold w-full absolute left-0 text-center opacity-10 dark:text-gray-100"
+            >
+              {post.episode.toString().padStart(2, '0')}
+            </div>
+          )}
 
-        <div className={utilStyles.lightText}>
-          <Date dateString={post.date} />
+          <h1 className="relative text-center">{post.title}</h1>
         </div>
 
         <MDXRemote {...post.source} />
       </article>
-    </Layout>
+    </PostLayout>
   )
 }
 

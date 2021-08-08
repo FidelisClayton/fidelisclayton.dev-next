@@ -21,7 +21,7 @@ const getLocalStorageDarkMode = () => {
 
 const ThemeSwitcher: React.FC<ThemeSwitcherProps> = ({ className }) => {
   const [isDark, setIsDark] = useState(
-    () => getLocalStorageDarkMode() || getPrefersDarkMode() || false
+    () => getLocalStorageDarkMode() ?? getPrefersDarkMode() ?? false
   )
 
   useEffect(() => {
@@ -33,11 +33,6 @@ const ThemeSwitcher: React.FC<ThemeSwitcherProps> = ({ className }) => {
       document.body.style.backgroundColor = '#fff'
     }
   }, [isDark])
-
-  useEffect(() => {
-    document.body.classList.add('transition-all')
-    document.body.classList.add('duration-700')
-  }, [])
 
   const handleClick = () => {
     setIsDark(!isDark)

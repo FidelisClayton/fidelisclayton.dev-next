@@ -16,7 +16,7 @@ const ArticleItem: React.FC<Props> = ({ post }) => {
             )}
 
             <header>
-              <h4 className="inline-block mt-1 mb-2 text-xl font-semibold leading-normal text-gray-800 transition-all dark:text-gray-300">
+              <h4 className="inline-block mb-2 -mt-1 text-xl font-semibold leading-normal text-gray-800 transition-all dark:text-gray-300">
                 {post.title}
               </h4>
             </header>
