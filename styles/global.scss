@@ -5,7 +5,10 @@
 @layer utilities {
   .prose {
     max-width: unset;
-    p {
+
+    p,
+    ol > li::before,
+    li {
       @apply dark:text-gray-300 text-gray-800;
     }
 

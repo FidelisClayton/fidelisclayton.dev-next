@@ -26,7 +26,7 @@ const Post: React.FC<Props> = ({ post }) => {
         <title>{post.title}</title>
       </Head>
 
-      <article className="prose prose-lg prose-indigo">
+      <article className="prose dark:prose-light prose-lg prose-indigo">
         <div className="relative mb-24">
           {post.episode && (
             <div

@@ -6,7 +6,7 @@ import ThemeSwitcher from '../ThemeSwitcher'
 const PostLayout: React.FC = ({ children }) => {
   return (
     <div className="mb-20">
-      <nav className="flex justify-between items-center container mx-auto max-w-4xl px-8 py-4 dark:text-gray-100">
+      <nav className="flex dark:bg-black dark:border-gray-800 bg-white sticky top-0 z-50 border-b-[1px] justify-between items-center container mx-auto max-w-4xl px-8 py-4 dark:text-gray-100">
         <Link href="/">
           <a>
             <div className="flex flex-row items-center space-x-4">

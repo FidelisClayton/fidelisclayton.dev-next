@@ -4,7 +4,7 @@ import PersonalInformation from '../PersonalInformation'
 const HomeLayout: React.FC = ({ children }) => {
   return (
     <div className="container flex flex-col mx-auto md:flex-row max-w-7xl">
-      <aside className="top-0 flex-1 md:max-w-xl px-8 py-2 md:sticky md:h-screen md:py-8">
+      <aside className="top-0 flex-1 md:max-w-xl px-8 py-2 md:sticky md:h-full md:py-8">
         <PersonalInformation />
 
         <DesktopNav />
