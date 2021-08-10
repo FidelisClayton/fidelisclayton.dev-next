@@ -20,21 +20,21 @@ const PostLayout: React.FC = ({ children }) => {
         <div className="flex items-center">
           <ul className="items-center hidden text-lg font-light md:flex space-x-1">
             <li>
-              <a className="px-4 py-2" href="/latest-posts">
-                Posts
-              </a>
+              <Link href="/latest-posts">
+                <a className="px-4 py-2">Posts</a>
+              </Link>
             </li>
 
             <li>
-              <a className="px-4 py-2" href="/categories">
-                Categories
-              </a>
+              <Link href="/categories">
+                <a className="px-4 py-2">Categories</a>
+              </Link>
             </li>
 
             <li>
-              <a className="px-4 py-2" href="/series">
-                Series
-              </a>
+              <Link href="/series">
+                <a className="px-4 py-2">Series</a>
+              </Link>
             </li>
           </ul>
           <ThemeSwitcher />

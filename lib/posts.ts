@@ -13,6 +13,7 @@ export type PostMeta = {
   date: string
   title: string
   category?: string
+  categorySlug?: string
   description: string
   episode?: number
   keywords?: string

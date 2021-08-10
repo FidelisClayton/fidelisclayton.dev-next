@@ -9,6 +9,7 @@ export const Simple = () => (
   <ArticleItem
     post={{
       language: 'en',
+      date: '2020-01-01',
       title: 'Nunc hendrerit sed tellus eu vehicula',
       id: 'lorem-ipsum',
       description:
@@ -21,6 +22,7 @@ export const WithSerieAndEpisode = () => (
   <ArticleItem
     post={{
       language: 'en',
+      date: '2020-01-01',
       title: 'Nunc hendrerit sed tellus eu vehicula',
       id: 'lorem-ipsum',
       description:
