@@ -1,33 +1,30 @@
+import { useCategories } from '../../providers/CategoriesProvider'
+import { useSeries } from '../../providers/SeriesProvider'
 import SideNavList from '../SideNavList'
 import SideNavTitle from '../SideNavTitle'
 
 const DesktopNav: React.FC = () => {
+  const categories = useCategories()
+  const series = useSeries()
+
   return (
     <nav className="hidden md:block">
       <SideNavTitle>Categorias</SideNavTitle>
 
       <SideNavList
-        items={[
-          {
-            link: '/categories/react',
-            label: 'React',
-          },
-          {
-            link: '/categories/elm',
-            label: 'Elm',
-          },
-        ]}
+        items={categories.map((category) => ({
+          link: `/categories/${category.slug}`,
+          label: category.title,
+        }))}
       />
 
       <SideNavTitle>Séries</SideNavTitle>
 
       <SideNavList
-        items={[
-          {
-            link: '/series/elm-na-pratica',
-            label: 'Elm na prática',
-          },
-        ]}
+        items={series.map((serie) => ({
+          link: `/series/${serie.slug}`,
+          label: serie.title,
+        }))}
       />
     </nav>
   )

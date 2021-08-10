@@ -1,6 +1,8 @@
 import 'prismjs/themes/prism-tomorrow.css'
+import CategoriesProvider from '../providers/CategoriesProvider'
+import SeriesProvider from '../providers/SeriesProvider'
 
-import '../styles/global.scss'
+import '../styles/global.css'
 
 type Props = {
   Component: React.ComponentType
@@ -8,7 +10,13 @@ type Props = {
 }
 
 const App: React.ComponentType<Props> = ({ Component, pageProps }) => {
-  return <Component {...pageProps} />
+  return (
+    <CategoriesProvider>
+      <SeriesProvider>
+        <Component {...pageProps} />
+      </SeriesProvider>
+    </CategoriesProvider>
+  )
 }
 
 export default App

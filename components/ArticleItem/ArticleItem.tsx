@@ -6,7 +6,7 @@ type Props = { post: PostMeta }
 const ArticleItem: React.FC<Props> = ({ post }) => {
   return (
     <div className="py-4 px-0 group">
-      <Link href={`/posts/${post.id}`}>
+      <Link href={`/posts/${post.language}/${post.id}`}>
         <a>
           <div>
             {post.serie && (

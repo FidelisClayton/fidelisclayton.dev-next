@@ -1,18 +1,25 @@
-import { GetStaticPaths, GetStaticProps } from 'next'
+import { GetStaticProps } from 'next'
 import Head from 'next/head'
 import prism from 'prismjs'
 
 // @ts-ignore
 import 'prismjs/components/prism-elm.min'
 
-import Date from '../../components/date'
-import { getAllPostIds, getPostData, Post as PostType } from '../../lib/posts'
+import {
+  getAllPostIds,
+  getPostData,
+  getSortedPostsData,
+  Post as PostType,
+} from '../../lib/posts'
 import { MDXRemote } from 'next-mdx-remote'
 import { useEffect } from 'react'
 import PostLayout from '../../components/PostLayout/PostLayout'
+import { getAllCategories } from '../../lib/categories'
+import { getAllSeries } from '../../lib/series'
 
 type Props = {
   post: PostType
+  language: string
 }
 
 const Post: React.FC<Props> = ({ post }) => {
@@ -46,7 +53,7 @@ const Post: React.FC<Props> = ({ post }) => {
   )
 }
 
-export const getStaticPaths: GetStaticPaths<{ id: string }> = async () => {
+export const getStaticPaths = async () => {
   const paths = getAllPostIds()
 
   return {
@@ -58,11 +65,23 @@ export const getStaticPaths: GetStaticPaths<{ id: string }> = async () => {
 export const getStaticProps: GetStaticProps<Partial<Props>> = async ({
   params,
 }) => {
-  const post = await getPostData(params.id as string)
+  const slug = params.id
+
+  /* When the slug is of length 1, it means that there is no language code present
+   * in the url, so we use english as default.
+   */
+  const language = slug.length > 1 ? slug[0] : 'en'
+  const id = slug[1]
+
+  const post = await getPostData(language, id)
 
   return {
     props: {
       post,
+      language,
+      posts: getSortedPostsData(),
+      categories: getAllCategories(),
+      series: getAllSeries(),
     },
   }
 }

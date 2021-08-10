@@ -17,6 +17,7 @@ export type PostMeta = {
   episode?: number
   keywords?: string
   serie?: string
+  language: string
 }
 
 export type Post = PostMeta & {
@@ -27,18 +28,23 @@ export type Post = PostMeta & {
 export const getSortedPostsData = (): PostMeta[] => {
   const fileNames = fs.readdirSync(postsDirectory)
 
-  const allPostsData: PostMeta[] = fileNames.map((fileName) => {
-    const id = fileName.replace(/\.mdx$/, '')
+  const allPostsData: PostMeta[] = fileNames.flatMap((folderName) => {
+    return fs
+      .readdirSync(path.join(postsDirectory, folderName))
+      .map((fileName) => {
+        const [_, language, ...rest] = fileName.split('.')
 
-    const fullPath = path.join(postsDirectory, fileName)
-    const fileContents = fs.readFileSync(fullPath, 'utf8')
+        const fullPath = path.join(postsDirectory, folderName, fileName)
+        const fileContents = fs.readFileSync(fullPath, 'utf8')
 
-    const matterResult = matter(fileContents)
+        const matterResult = matter(fileContents)
 
-    return {
-      id,
-      ...matterResult.data,
-    } as PostMeta
+        return {
+          id: folderName,
+          language: rest.length > 0 ? language : 'en',
+          ...matterResult.data,
+        } as PostMeta
+      })
   })
 
   return allPostsData.sort(({ date: a }, { date: b }) => {
@@ -55,15 +61,28 @@ export const getSortedPostsData = (): PostMeta[] => {
 export function getAllPostIds() {
   const fileNames = fs.readdirSync(postsDirectory)
 
-  return fileNames.map((fileName) => ({
-    params: {
-      id: fileName.replace(/\.mdx$/, ''),
-    },
-  }))
+  return fileNames.flatMap((folderName) => {
+    return fs
+      .readdirSync(path.join(postsDirectory, folderName))
+      .map((fileName) => {
+        const [_, language, ...rest] = fileName.split('.')
+
+        return {
+          params: {
+            id: [rest.length > 0 ? language : 'en', folderName],
+          },
+        }
+      })
+  })
 }
 
-export const getPostData = async (id: string): Promise<Post> => {
-  const fullPath = path.join(postsDirectory, `${id}.mdx`)
+export const getPostData = async (
+  language: string,
+  id: string
+): Promise<Post> => {
+  const fileName =
+    language === 'en' ? `${id}/index.mdx` : `${id}/index.${language}.mdx`
+  const fullPath = path.join(postsDirectory, fileName)
   const fileContents = fs.readFileSync(fullPath, 'utf8')
 
   const matterResult = matter(fileContents)

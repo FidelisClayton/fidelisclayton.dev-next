@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .prose {
+    max-width: unset;
+  }
+
+  .prose p,
+  .prose ol > li::before,
+  .prose li {
+    @apply dark:text-gray-300 text-gray-800;
+  }
+
+  .prose h1,
+  .prose h3,
+  .prose h4,
+  .prose h5 {
+    @apply text-gray-800 dark:text-gray-300;
+  }
+
+  .prose h2 {
+    @apply text-green-600;
+    @apply text-transparent
+        bg-clip-text
+        bg-gradient-to-tr
+        from-green-600
+        to-green-900
+        dark:from-green-400
+        dark:to-green-700;
+  }
+
+  .prose code {
+    @apply text-yellow-500;
+  }
+
+  .prose strong {
+    @apply text-current font-normal font-semibold;
+  }
+}
+
+.token.constant {
+  @apply text-yellow-500;
+}
+
+.token.string {
+  @apply text-green-500;
+}
+
+.token.keyword {
+  @apply text-purple-500;
+}
