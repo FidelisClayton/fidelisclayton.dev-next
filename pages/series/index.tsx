@@ -2,28 +2,25 @@ import { GetStaticProps } from 'next'
 import Link from 'next/link'
 import ArticleItem from '../../components/ArticleItem'
 import PostLayout from '../../components/PostLayout'
-import { Category, getAllCategories } from '../../lib/categories'
 import { getSortedPostsData, PostMeta } from '../../lib/posts'
+import { getAllSeries, Serie } from '../../lib/series'
 
 type Props = {
-  categories: Category[]
-  postsByCategory: Record<string, PostMeta[]>
+  series: Serie[]
+  postsBySerie: Record<string, PostMeta[]>
 }
 
-const Categories: React.FC<Props> = ({
-  categories = [],
-  postsByCategory = {},
-}) => {
+const Series: React.FC<Props> = ({ series = [], postsBySerie = {} }) => {
   return (
     <PostLayout>
-      {categories.map((category) => {
-        const posts = postsByCategory[category.slug] || []
+      {series.map((serie) => {
+        const posts = postsBySerie[serie.slug] || []
 
         return (
           <>
             <div className="flex items-end justify-between space-x-4 mb-8">
               <h2 className="text-5xl font-semibold dark:text-gray-200">
-                {category.title}
+                {serie.title}
               </h2>
 
               <div className="flex items-center space-x-4">
@@ -32,8 +29,8 @@ const Categories: React.FC<Props> = ({
                 </span>
 
                 {posts.length > 3 && (
-                  <Link href={`/categories/${category.slug}`}>
-                    <a className="font-semibold border-b-2 border-indigo-200 hover:border-indigo-500 dark:border-indigo-900 dark:hover:border-indigo-200 transition-all duration-200 dark:text-gray-300">
+                  <Link href={`/series/${serie.slug}`}>
+                    <a className="border-b-2 border-indigo-200 hover:border-indigo-500 dark:border-indigo-900 dark:hover:border-indigo-200 transition-all duration-200 dark:text-gray-300">
                       See all
                     </a>
                   </Link>
@@ -45,10 +42,11 @@ const Categories: React.FC<Props> = ({
               <ArticleItem
                 post={post}
                 classes={{
-                  title: 'mb-0 group-hover:text-indigo-600',
+                  title: '-mb-1 group-hover:text-indigo-600',
                   description: 'mb-0',
                 }}
                 hideCTA
+                hideSerie
               />
             ))}
           </>
@@ -59,26 +57,26 @@ const Categories: React.FC<Props> = ({
 }
 
 export const getStaticProps: GetStaticProps<Partial<Props>> = async () => {
-  const categories = getAllCategories()
+  const series = getAllSeries()
   const posts = getSortedPostsData()
 
-  const postsByCategory = posts.reduce((acc, post) => {
+  const postsBySerie = posts.reduce((acc, post) => {
     if (!post.categorySlug) return acc
 
-    const postsForCategory = acc[post.categorySlug] || []
+    const postsForSerie = acc[post.serieSlug] || []
 
     return {
       ...acc,
-      [post.categorySlug]: [...postsForCategory, post],
+      [post.serieSlug]: [...postsForSerie, post],
     }
   }, {})
 
   return {
     props: {
-      categories,
-      postsByCategory,
+      series,
+      postsBySerie,
     },
   }
 }
 
-export default Categories
+export default Series

@@ -18,6 +18,7 @@ export type PostMeta = {
   episode?: number
   keywords?: string
   serie?: string
+  serieSlug?: string
   language: string
 }
 

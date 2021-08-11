@@ -5,6 +5,7 @@ import { PostMeta } from '../../lib/posts'
 type Props = {
   post: PostMeta
   hideCTA?: boolean
+  hideSerie?: boolean
   classes?: {
     root?: string
     title?: string
@@ -14,13 +15,18 @@ type Props = {
   }
 }
 
-const ArticleItem: React.FC<Props> = ({ post, hideCTA, classes }) => {
+const ArticleItem: React.FC<Props> = ({
+  post,
+  hideCTA,
+  hideSerie,
+  classes,
+}) => {
   return (
     <div className={clsx(classes?.root, 'py-4 px-0 group')}>
       <Link href={`/posts/${post.language}/${post.id}`}>
         <a>
           <div>
-            {post.serie && (
+            {post.serie && !hideSerie && (
               <p
                 className={clsx(
                   classes?.serie,
@@ -35,7 +41,7 @@ const ArticleItem: React.FC<Props> = ({ post, hideCTA, classes }) => {
               <h4
                 className={clsx(
                   classes?.title,
-                  'inline-block mb-2 -mt-1 text-xl font-semibold leading-normal text-gray-800 transition-all dark:text-gray-300'
+                  'inline-block mb-2 -mt-1 text-xl font-semibold leading-normal text-gray-800 transition-all dark:text-gray-300 -mb-1'
                 )}
               >
                 {post.title}
