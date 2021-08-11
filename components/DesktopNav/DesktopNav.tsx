@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { useCategories } from '../../providers/CategoriesProvider'
 import { useSeries } from '../../providers/SeriesProvider'
 import SideNavList from '../SideNavList'
@@ -9,23 +10,39 @@ const DesktopNav: React.FC = () => {
 
   return (
     <nav className="hidden md:block">
-      <SideNavTitle>Categorias</SideNavTitle>
+      {categories.length > 0 && (
+        <>
+          <Link href="/categories">
+            <a>
+              <SideNavTitle>Categories</SideNavTitle>
+            </a>
+          </Link>
 
-      <SideNavList
-        items={categories.map((category) => ({
-          link: `/categories/${category.slug}`,
-          label: category.title,
-        }))}
-      />
+          <SideNavList
+            items={categories.map((category) => ({
+              link: `/categories/${category.slug}`,
+              label: category.title,
+            }))}
+          />
+        </>
+      )}
 
-      <SideNavTitle>Séries</SideNavTitle>
+      {series.length > 0 && (
+        <>
+          <Link href="/series">
+            <a>
+              <SideNavTitle>Series</SideNavTitle>
+            </a>
+          </Link>
 
-      <SideNavList
-        items={series.map((serie) => ({
-          link: `/series/${serie.slug}`,
-          label: serie.title,
-        }))}
-      />
+          <SideNavList
+            items={series.map((serie) => ({
+              link: `/series/${serie.slug}`,
+              label: serie.title,
+            }))}
+          />
+        </>
+      )}
     </nav>
   )
 }
