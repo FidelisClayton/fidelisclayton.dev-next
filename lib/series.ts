@@ -38,3 +38,11 @@ export function getAllSeries() {
 
   return Object.values(allSeriesBySlugAndLanguage)
 }
+
+export const getAllSeriesIds = () => {
+  return getAllSeries().map((serie) => ({
+    params: {
+      id: serie.slug,
+    },
+  }))
+}

@@ -19,7 +19,7 @@ const LatestPosts: React.FC<Props> = ({ posts = [] }) => {
         />
       </Head>
 
-      <h1 className="dark:text-gray-200 text-4xl mb-8 font-semibold">
+      <h1 className="dark:text-gray-200 text-5xl mb-8 font-semibold">
         Latest posts
       </h1>
 
