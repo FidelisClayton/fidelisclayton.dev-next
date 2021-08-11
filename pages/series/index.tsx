@@ -1,4 +1,5 @@
 import { GetStaticProps } from 'next'
+import Head from 'next/head'
 import Link from 'next/link'
 import ArticleItem from '../../components/ArticleItem'
 import PostLayout from '../../components/PostLayout'
@@ -13,6 +14,10 @@ type Props = {
 const Series: React.FC<Props> = ({ series = [], postsBySerie = {} }) => {
   return (
     <PostLayout>
+      <Head>
+        <title>Series | Clayton Fidelis</title>
+      </Head>
+
       {series.map((serie) => {
         const posts = postsBySerie[serie.slug] || []
 

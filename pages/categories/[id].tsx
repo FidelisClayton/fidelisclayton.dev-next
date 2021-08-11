@@ -1,4 +1,5 @@
 import { GetStaticPaths, GetStaticProps } from 'next'
+import Head from 'next/head'
 import ArticleItem from '../../components/ArticleItem'
 import PostLayout from '../../components/PostLayout'
 import { Category, getAllCategoryIds } from '../../lib/categories'
@@ -12,6 +13,10 @@ type Props = {
 const CategoryPage: React.FC<Props> = ({ category, posts = [] }) => {
   return (
     <PostLayout>
+      <Head>
+        <title>{category.title} | Clayton Fidelis</title>
+      </Head>
+
       <h2 className="text-5xl font-semibold dark:text-gray-200 mb-8">
         {category.title}
       </h2>

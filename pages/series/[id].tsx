@@ -1,4 +1,5 @@
 import { GetStaticPaths, GetStaticProps } from 'next'
+import Head from 'next/head'
 import ArticleItem from '../../components/ArticleItem'
 import PostLayout from '../../components/PostLayout'
 import { getSortedPostsData, PostMeta } from '../../lib/posts'
@@ -12,6 +13,10 @@ type Props = {
 const SeriePage: React.FC<Props> = ({ serie, posts = [] }) => {
   return (
     <PostLayout>
+      <Head>
+        <title>{serie.title} | Clayton Fidelis</title>
+      </Head>
+
       <h2 className="text-5xl font-semibold dark:text-gray-200 mb-8">
         {serie.title}
       </h2>

@@ -1,4 +1,5 @@
 import { GetStaticProps } from 'next'
+import Head from 'next/head'
 import Link from 'next/link'
 import ArticleItem from '../../components/ArticleItem'
 import PostLayout from '../../components/PostLayout'
@@ -16,6 +17,10 @@ const Categories: React.FC<Props> = ({
 }) => {
   return (
     <PostLayout>
+      <Head>
+        <title>Categories | Clayton Fidelis</title>
+      </Head>
+
       {categories.map((category) => {
         const posts = postsByCategory[category.slug] || []
 

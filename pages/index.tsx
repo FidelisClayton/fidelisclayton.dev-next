@@ -6,8 +6,6 @@ import ArticleItem from '../components/ArticleItem'
 import HomeLayout from '../components/HomeLayout'
 import { getAllSeries, Serie } from '../lib/series'
 
-const siteTitle = 'My Blog'
-
 import { getSortedPostsData, PostMeta } from '../lib/posts'
 import { Category, getAllCategories } from '../lib/categories'
 import { useSetCategories } from '../providers/CategoriesProvider'
@@ -32,7 +30,7 @@ const Home: React.FC<Props> = ({ posts = [], categories, series }) => {
   return (
     <HomeLayout>
       <Head>
-        <title>{siteTitle}</title>
+        <title>Blog | Clayton Fidelis</title>
       </Head>
 
       {posts.map((post) => (
