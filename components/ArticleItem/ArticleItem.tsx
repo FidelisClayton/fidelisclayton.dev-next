@@ -38,14 +38,14 @@ const ArticleItem: React.FC<Props> = ({
             )}
 
             <header>
-              <h4
+              <h3
                 className={clsx(
                   classes?.title,
                   'inline-block mb-2 -mt-1 text-xl font-semibold leading-normal text-gray-800 transition-all dark:text-gray-300 -mb-1'
                 )}
               >
                 {post.title}
-              </h4>
+              </h3>
             </header>
 
             <section>

@@ -31,6 +31,7 @@ const Post: React.FC<Props> = ({ post }) => {
     <PostLayout>
       <Head>
         <title>{post.title}</title>
+        <meta name="description" content={post.description} />
       </Head>
 
       <article className="prose dark:prose-light prose-lg prose-indigo">

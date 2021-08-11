@@ -30,6 +30,8 @@ const PersonalInformation = () => {
           <a
             target="_blank"
             className="dark:text-white hover:text-indigo-500 dark:hover:text-indigo-500 transition-all"
+            title="Linkedin"
+            rel="noreferrer"
           >
             <span className="inline-block w-8 p-[5px] pb-[6px] pt-[1px]">
               <svg
@@ -46,7 +48,7 @@ const PersonalInformation = () => {
         </Link>
 
         <Link href="https://twitter.com/fidelisclayton">
-          <a target="_blank">
+          <a target="_blank" title="Twitter" rel="noreferrer">
             <span className="inline-block w-8 p-1 text-gray-900 dark:text-white hover:text-indigo-500 dark:hover:text-indigo-500 transition-all">
               <svg
                 fill="currentColor"

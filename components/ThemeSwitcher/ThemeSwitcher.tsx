@@ -53,6 +53,7 @@ const ThemeSwitcher: React.FC<ThemeSwitcherProps> = ({ className }) => {
         className,
         'dark:hover:bg-gray-800 hover:bg-gray-200 p-2 rounded-full'
       )}
+      title="Switch theme"
       onClick={handleClick}
     >
       {isDark ? (
