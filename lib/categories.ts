@@ -41,3 +41,11 @@ export function getAllCategories() {
 
   return Object.values(allCategoriesBySlugAndLanguage)
 }
+
+export const getAllCategoryIds = () => {
+  return getAllCategories().map((category) => ({
+    params: {
+      id: category.slug,
+    },
+  }))
+}

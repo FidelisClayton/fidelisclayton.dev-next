@@ -1,19 +1,19 @@
 import { GetStaticPaths, GetStaticProps } from 'next'
 import ArticleItem from '../../components/ArticleItem'
 import PostLayout from '../../components/PostLayout'
+import { Category, getAllCategoryIds } from '../../lib/categories'
 import { getSortedPostsData, PostMeta } from '../../lib/posts'
-import { getAllSeriesIds, Serie } from '../../lib/series'
 
 type Props = {
-  serie: Serie
+  category: Category
   posts: PostMeta[]
 }
 
-const SeriePage: React.FC<Props> = ({ serie, posts = [] }) => {
+const CategoryPage: React.FC<Props> = ({ category, posts = [] }) => {
   return (
     <PostLayout>
       <h2 className="text-5xl font-semibold dark:text-gray-200 mb-8">
-        {serie.title}
+        {category.title}
       </h2>
 
       {[...posts].reverse().map((post) => (
@@ -31,7 +31,7 @@ const SeriePage: React.FC<Props> = ({ serie, posts = [] }) => {
 }
 
 export const getStaticPaths: GetStaticPaths = async () => {
-  const paths = getAllSeriesIds()
+  const paths = getAllCategoryIds()
 
   return {
     paths,
@@ -44,26 +44,26 @@ export const getStaticProps: GetStaticProps<Partial<Props>> = async ({
 }) => {
   const id = params.id
 
-  const postsForSerie = getSortedPostsData().filter(
-    (post) => post.serieSlug === id
+  const postsForCategory = getSortedPostsData().filter(
+    (post) => post.categorySlug === id
   )
 
-  const serie: Serie | null =
-    postsForSerie.length > 0
+  const category: Category | null =
+    postsForCategory.length > 0
       ? {
-          title: postsForSerie[0].serie,
-          slug: postsForSerie[0].serieSlug,
-          language: postsForSerie[0].language,
+          title: postsForCategory[0].category,
+          slug: postsForCategory[0].categorySlug,
+          language: postsForCategory[0].language,
         }
       : null
 
   return {
     props: {
-      serie,
-      posts: postsForSerie,
+      category,
+      posts: postsForCategory,
     },
-    notFound: !serie,
+    notFound: !category,
   }
 }
 
-export default SeriePage
+export default CategoryPage
