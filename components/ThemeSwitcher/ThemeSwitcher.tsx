@@ -20,9 +20,14 @@ const getLocalStorageDarkMode = () => {
 }
 
 const ThemeSwitcher: React.FC<ThemeSwitcherProps> = ({ className }) => {
-  const [isDark, setIsDark] = useState(
-    () => getLocalStorageDarkMode() ?? getPrefersDarkMode() ?? false
-  )
+  const [isDark, setIsDark] = useState(false)
+
+  useEffect(() => {
+    // This the value inside the useEffect to prevent this error:
+    // Warning: Prop `d` did not match.
+    // Source: https://stackoverflow.com/a/56525858
+    setIsDark(getLocalStorageDarkMode() ?? getPrefersDarkMode() ?? false)
+  }, [])
 
   useEffect(() => {
     if (isDark) {

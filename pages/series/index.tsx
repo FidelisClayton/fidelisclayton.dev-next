@@ -1,6 +1,7 @@
 import { GetStaticProps } from 'next'
 import Head from 'next/head'
 import Link from 'next/link'
+import { Fragment } from 'react'
 import ArticleItem from '../../components/ArticleItem'
 import PostLayout from '../../components/PostLayout'
 import { getSortedPostsData, PostMeta } from '../../lib/posts'
@@ -22,7 +23,7 @@ const Series: React.FC<Props> = ({ series = [], postsBySerie = {} }) => {
         const posts = postsBySerie[serie.slug] || []
 
         return (
-          <>
+          <Fragment key={serie.slug}>
             <div className="flex items-end justify-between space-x-4 mb-8">
               <h2 className="text-5xl font-semibold dark:text-gray-200">
                 {serie.title}
@@ -45,6 +46,7 @@ const Series: React.FC<Props> = ({ series = [], postsBySerie = {} }) => {
 
             {posts.slice(0, 3).map((post) => (
               <ArticleItem
+                key={post.id}
                 post={post}
                 classes={{
                   title: '-mb-1 group-hover:text-indigo-600',
@@ -54,7 +56,7 @@ const Series: React.FC<Props> = ({ series = [], postsBySerie = {} }) => {
                 hideSerie
               />
             ))}
-          </>
+          </Fragment>
         )
       })}
     </PostLayout>

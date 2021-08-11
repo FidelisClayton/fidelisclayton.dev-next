@@ -1,6 +1,7 @@
 import { GetStaticProps } from 'next'
 import Head from 'next/head'
 import Link from 'next/link'
+import { Fragment } from 'react'
 import ArticleItem from '../../components/ArticleItem'
 import PostLayout from '../../components/PostLayout'
 import { Category, getAllCategories } from '../../lib/categories'
@@ -25,7 +26,7 @@ const Categories: React.FC<Props> = ({
         const posts = postsByCategory[category.slug] || []
 
         return (
-          <>
+          <Fragment key={category.slug}>
             <div className="flex items-end justify-between space-x-4 mb-8">
               <h2 className="text-5xl font-semibold dark:text-gray-200">
                 {category.title}
@@ -48,6 +49,7 @@ const Categories: React.FC<Props> = ({
 
             {posts.slice(0, 3).map((post) => (
               <ArticleItem
+                key={post.id}
                 post={post}
                 classes={{
                   title: 'mb-0 group-hover:text-indigo-600',
@@ -56,7 +58,7 @@ const Categories: React.FC<Props> = ({
                 hideCTA
               />
             ))}
-          </>
+          </Fragment>
         )
       })}
     </PostLayout>

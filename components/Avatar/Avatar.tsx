@@ -7,14 +7,15 @@ export type AvatarProps = {
   height: number
 }
 
-const Avatar: React.FC<AvatarProps> = ({ className }) => {
+const Avatar: React.FC<AvatarProps> = ({ className, width, height }) => {
   return (
     <div className={clsx('relative', className)}>
       <Image
         className="relative hidden w-full rounded-full md:block"
         src="/images/profile.png"
         alt="Clayton Fidelis"
-        layout="fill"
+        width={width}
+        height={height}
       />
     </div>
   )

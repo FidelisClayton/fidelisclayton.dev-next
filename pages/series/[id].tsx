@@ -23,6 +23,7 @@ const SeriePage: React.FC<Props> = ({ serie, posts = [] }) => {
 
       {[...posts].reverse().map((post) => (
         <ArticleItem
+          key={post.id}
           post={post}
           classes={{
             title: 'mb-0 group-hover:text-indigo-600',
