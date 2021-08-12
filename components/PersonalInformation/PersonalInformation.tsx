@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import meta from '../../config/meta'
 import Avatar from '../Avatar'
 import ThemeSwitcher from '../ThemeSwitcher/ThemeSwitcher'
 
@@ -17,7 +18,7 @@ const PersonalInformation = () => {
             <div className="absolute top-0 mt-3 w-full h-4 dark:bg-gray-700 bg-indigo-100 blur-xl rounded transform rotate-[-1deg]" />
 
             <h1 className="relative inline-block text-xl font-semibold md:text-3xl">
-              Clayton Fidelis
+              {meta.siteTitle}
             </h1>
           </div>
 
@@ -26,7 +27,7 @@ const PersonalInformation = () => {
       </div>
 
       <div className="hidden mb-2 space-x-2 md:block">
-        <Link href="https://www.linkedin.com/in/fidelisclayton/">
+        <Link href={meta.linkedinUrl}>
           <a
             target="_blank"
             className="dark:text-white hover:text-indigo-500 dark:hover:text-indigo-500 transition-all"
@@ -47,7 +48,7 @@ const PersonalInformation = () => {
           </a>
         </Link>
 
-        <Link href="https://twitter.com/fidelisclayton">
+        <Link href={meta.twitterUrl}>
           <a target="_blank" title="Twitter" rel="noreferrer">
             <span className="inline-block w-8 p-1 text-gray-900 dark:text-white hover:text-indigo-500 dark:hover:text-indigo-500 transition-all">
               <svg
@@ -65,10 +66,7 @@ const PersonalInformation = () => {
       </div>
 
       <p className="hidden text-lg leading-relaxed text-gray-800 dark:text-gray-400 md:block">
-        Desenvolvedor front-end, entusiasta Elm, apaixonado por JavaScript e um
-        amante do open source. Gosto de compartilhar o que sei, então escrevo
-        tutoriais sobre desenvolvimento de software com foco em front-end,
-        principalmente Elm e React.
+        {meta.bio}
       </p>
     </div>
   )

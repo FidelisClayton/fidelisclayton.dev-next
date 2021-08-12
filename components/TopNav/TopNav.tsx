@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import Link from 'next/link'
+import meta from '../../config/meta'
 import Avatar from '../Avatar'
 import ThemeSwitcher from '../ThemeSwitcher'
 
@@ -26,7 +27,7 @@ const TopNav: React.FC<TopNavProps> = ({ className }) => {
               />
 
               <p className="font-semibold text-gray-800 dark:text-gray-200 text md:text-xl">
-                Clayton Fidelis
+                {meta.siteTitle}
               </p>
             </div>
           </a>

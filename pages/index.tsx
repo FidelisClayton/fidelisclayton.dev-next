@@ -11,6 +11,7 @@ import { Category, getAllCategories } from '../lib/categories'
 import { useSetCategories } from '../providers/CategoriesProvider'
 import { useEffect } from 'react'
 import { useSetSeries } from '../providers/SeriesProvider'
+import meta from '../config/meta'
 
 type Props = {
   posts: PostMeta[]
@@ -31,6 +32,14 @@ const Home: React.FC<Props> = ({ posts = [], categories, series }) => {
     <HomeLayout>
       <Head>
         <title>Blog | Clayton Fidelis</title>
+        <meta name="description" content={meta.description} />
+        <meta name="og:url" content={meta.url} />
+        <meta name="og:title" content={meta.siteTitle} />
+        <meta name="og:description" content={meta.description} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:creator" content={meta.twitterHandle} />
+        <meta name="twitter:title" content={meta.siteTitle} />
+        <meta name="twitter:description" content={meta.description} />
       </Head>
 
       {posts.map((post) => (
