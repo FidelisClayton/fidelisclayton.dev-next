@@ -44,18 +44,20 @@ const Series: React.FC<Props> = ({ series = [], postsBySerie = {} }) => {
               </div>
             </div>
 
-            {posts.slice(0, 3).map((post) => (
-              <ArticleItem
-                key={post.id}
-                post={post}
-                classes={{
-                  title: '-mb-1 group-hover:text-indigo-600',
-                  description: 'mb-0',
-                }}
-                hideCTA
-                hideSerie
-              />
-            ))}
+            {[...posts]
+              .reverse()
+              .slice(0, 3)
+              .map((post) => (
+                <ArticleItem
+                  key={post.id}
+                  post={post}
+                  classes={{
+                    title: '-mb-1 group-hover:text-indigo-600',
+                    description: 'mb-0',
+                  }}
+                  hideCTA
+                />
+              ))}
           </Fragment>
         )
       })}
