@@ -1,14 +1,14 @@
-import Head from 'next/head'
-import 'prismjs/themes/prism-tomorrow.css'
-import CategoriesProvider from '../providers/CategoriesProvider'
-import SeriesProvider from '../providers/SeriesProvider'
+import Head from "next/head";
+import "prismjs/themes/prism-tomorrow.css";
+import CategoriesProvider from "../providers/CategoriesProvider";
+import SeriesProvider from "../providers/SeriesProvider";
 
-import '../styles/global.css'
+import "../styles/global.css";
 
 type Props = {
-  Component: React.ComponentType
-  pageProps: Record<string, unknown>
-}
+  Component: React.ComponentType;
+  pageProps: Record<string, unknown>;
+};
 
 const App: React.ComponentType<Props> = ({ Component, pageProps }) => {
   return (
@@ -45,10 +45,11 @@ if (isDark) {
             }}
           />
         </Head>
+        {/*  @ts-ignore*/}
         <Component {...pageProps} />
       </SeriesProvider>
     </CategoriesProvider>
-  )
-}
+  );
+};
 
-export default App
+export default App;
